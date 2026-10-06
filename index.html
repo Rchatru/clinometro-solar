@@ -24,6 +24,7 @@
   --bg:#121428; --surface:#1b1e3a; --fg:#ecedf5; --fg2:#a9adc8; --line:#3a3f6e;
   --head:#b9c2ea; --accent:#e0a24f; --tint:#24284b; --warn:#f0965a; --ok:#7fcf8f; color-scheme:dark}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{margin:0}
 body{background:var(--bg);color:var(--fg);font:15px/1.4 var(--sans);padding-bottom:env(safe-area-inset-bottom,0px)}
 header{background:var(--navy);color:#fff;padding:calc(env(safe-area-inset-top,0px) + 10px) 16px 10px;border-bottom:2px solid var(--gold);display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
@@ -277,7 +278,7 @@ async function start(){
     var stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}},audio:false});
     var v=$("video");v.srcObject=stream;await v.play().catch(function(){});
   }catch(e){msg.push("Cámara no disponible ("+(e&&e.name||"error")+"). Las lecturas siguen funcionando apuntando con la parte trasera del móvil.")}
-  try{if("wakeLock" in navigator)await navigator.wakeLock.request("screen")}catch(e){}
+  try{if("wakeLock" in navigator)navigator.wakeLock.request("screen").catch(function(){})}catch(e){}
   /* Algunos Android tardan unos segundos en enviar la primera lectura de orientación:
      se cierra el panel en cuanto llegan datos y solo se avisa si siguen sin llegar a los 5 s. */
   var t0=performance.now();
