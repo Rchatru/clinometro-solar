@@ -65,7 +65,12 @@ input,select{font:inherit;color:var(--fg);background:var(--surface);border:1px s
 h2{color:var(--head);font-size:17px;margin:22px 0 8px;text-wrap:balance}
 section{min-width:0}
 .card{background:var(--surface);border:1px solid var(--line);padding:12px}
-canvas{display:block;width:100%;height:240px}
+canvas{display:block;width:100%;height:250px}
+canvas.full{height:320px}
+.seg{display:inline-flex;border:1px solid var(--line);margin-bottom:8px}
+.seg button{background:transparent;color:var(--head);border:0;padding:7px 12px;font-size:14px;font-weight:700}
+.seg button[aria-pressed="true"]{background:var(--navy);color:#fff}
+.seg button:focus-visible{outline:3px solid var(--accent);outline-offset:-3px}
 .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--fg2);margin-top:6px}
 .legend i{display:inline-block;width:18px;height:0;border-top:2px dashed;vertical-align:middle;margin-right:5px}
 .tablewrap{overflow-x:auto}
@@ -123,12 +128,18 @@ footer{color:var(--fg2);font-size:12px;padding-block:24px;text-align:center}
   <section>
     <h2>Perfil del horizonte</h2>
     <div class="card">
+      <div class="seg" role="group" aria-label="Detalle del diagrama">
+        <button type="button" id="modeSimple" aria-pressed="true">Simplificado</button>
+        <button type="button" id="modeFull" aria-pressed="false">Completo</button>
+      </div>
       <canvas id="chart" aria-label="Perfil de obstáculos sobre las trayectorias solares"></canvas>
       <div class="legend">
         <span><i style="color:var(--gold)"></i>21 junio</span>
         <span><i style="color:var(--head)"></i>21 marzo / 21 septiembre</span>
         <span><i style="color:var(--warn)"></i>21 diciembre</span>
+        <span id="legFull" hidden><i style="color:var(--fg2);border-top-style:solid;border-top-width:1px"></i>resto de meses (día 21) y horas solares</span>
       </div>
+      <p class="note" id="noteFull" hidden>Las horas son solares: a las 12 h el sol está al sur. En La Palma la hora oficial va aproximadamente 1 h 10 min por delante en invierno y 2 h 10 min en verano.</p>
     </div>
   </section>
 
@@ -352,6 +363,13 @@ function render(){
   drawChart();
 }
 
+var MONTHS=[{d:23.44,l:"jun",main:1},{d:20.2,l:"may-jul"},{d:11.8,l:"abr-ago"},{d:0,l:"mar-sep",main:1},{d:-10.8,l:"feb-oct"},{d:-20.1,l:"ene-nov"},{d:-23.44,l:"dic",main:1}];
+function sunPos(lat,decl,hDeg){
+  var phi=lat*D2R,d=decl*D2R,H=hDeg*D2R;
+  var el=Math.asin(Math.sin(phi)*Math.sin(d)+Math.cos(phi)*Math.cos(d)*Math.cos(H))*R2D;
+  var az=Math.atan2(Math.sin(H),Math.cos(H)*Math.sin(phi)-Math.tan(d)*Math.cos(phi))*R2D;
+  return [az,el];
+}
 function sunPath(lat,decl){
   var out=[],phi=lat*D2R,d=decl*D2R;
   for(var h=-180;h<=180;h+=2){
@@ -378,11 +396,33 @@ function drawChart(){
   [[-120,"−120"],[-90,"E"],[-60,"−60"],[-30,"−30"],[0,"S"],[30,"30"],[60,"60"],[90,"O"],[120,"120"]].forEach(function(t){
     g.beginPath();g.moveTo(X(t[0]),T);g.lineTo(X(t[0]),T+ph);g.stroke();g.textAlign="center";g.fillText(t[1],X(t[0]),h-8)});
   /* trayectorias solares */
+  var fg2=css("--fg2");
+  function poly(pts){var started=false;g.beginPath();pts.forEach(function(q){if(q[0]<azMin||q[0]>azMax||q[1]<0){started=false;return}var x=X(q[0]),y=Y(q[1]);started?g.lineTo(x,y):g.moveTo(x,y);started=true});g.stroke()}
+  if(state.mode==="full"){
+    /* líneas horarias (hora solar) */
+    g.strokeStyle=fg2;g.globalAlpha=.55;g.lineWidth=1;g.setLineDash([2,3]);
+    for(var hr=6;hr<=18;hr++){
+      var line=[];for(var d=-23.44;d<=23.45;d+=1.5)line.push(sunPos(state.lat,d,(hr-12)*15));
+      poly(line);
+    }
+    g.setLineDash([]);
+    /* días 21 del resto de meses */
+    MONTHS.forEach(function(m){if(m.main)return;g.strokeStyle=fg2;g.lineWidth=1;poly(sunPath(state.lat,m.d))});
+    g.globalAlpha=1;
+  }
   [[23.44,css("--accent")],[0,css("--head")],[-23.44,css("--warn")]].forEach(function(d){
-    var p=sunPath(state.lat,d[0]);g.strokeStyle=d[1];g.lineWidth=2;g.setLineDash([6,4]);g.beginPath();
-    p.forEach(function(q,i){if(q[0]<azMin||q[0]>azMax)return;var x=X(q[0]),y=Y(q[1]);i?g.lineTo(x,y):g.moveTo(x,y)});g.stroke();
+    g.strokeStyle=d[1];g.lineWidth=2;g.setLineDash([6,4]);poly(sunPath(state.lat,d[0]));
   });
   g.setLineDash([]);
+  if(state.mode==="full"){
+    g.font="11px "+css("--sans");g.fillStyle=fg2;g.textAlign="center";
+    g.strokeStyle=css("--surface");g.lineWidth=3;g.lineJoin="round";
+    var ft=g.fillText.bind(g);g.fillText=function(t,x,y){g.strokeText(t,x,y);ft(t,x,y)};
+    for(var hh=7;hh<=17;hh++){var q=sunPos(state.lat,23.44,(hh-12)*15);if(q[1]>2&&q[0]>=azMin&&q[0]<=azMax)g.fillText(hh+" h",X(q[0]),Y(q[1])-5)}
+    g.textAlign="left";
+    MONTHS.forEach(function(m){var q=sunPos(state.lat,m.d,0);g.fillText(m.l,X(0)+4,Y(q[1])+12)});
+    g.fillText=ft;g.lineWidth=1;
+  }
   /* obstáculos */
   var pts=state.points.filter(function(p){return p.az>=azMin&&p.az<=azMax}).slice().sort(function(a,b){return a.az-b.az});
   if(pts.length){
@@ -397,6 +437,12 @@ function drawChart(){
   }
 }
 window.addEventListener("resize",drawChart);
+state.mode=store.get("clino.mode","simple");
+function setMode(m){state.mode=m;store.set("clino.mode",m);
+  $("modeSimple").setAttribute("aria-pressed",String(m==="simple"));$("modeFull").setAttribute("aria-pressed",String(m==="full"));
+  $("chart").classList.toggle("full",m==="full");$("legFull").hidden=m!=="full";$("noteFull").hidden=m!=="full";drawChart()}
+$("modeSimple").addEventListener("click",function(){setMode("simple")});
+$("modeFull").addEventListener("click",function(){setMode("full")});
 if(window.matchMedia)window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change",drawChart);
 
 function csvText(sep){
@@ -421,7 +467,7 @@ $("btnClear").addEventListener("click",function(){if(state.points.length)$("conf
 $("btnClearNo").addEventListener("click",function(){$("confirmClear").hidden=true});
 $("btnClearYes").addEventListener("click",function(){state.points=[];store.set("clino.points",[]);$("confirmClear").hidden=true;render()});
 
-calInfo();render();
+calInfo();render();setMode(state.mode);
 })();
 </script>
 </body>
