@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Clinómetro solar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Carlito:ital,wght@0,400;0,700;1,400&display=swap">
+<style>
+/* Visor de cámara arriba, lecturas superpuestas; debajo, perfil del horizonte, tabla de puntos y ajustes. Ángulos rectos, navy + oro del CIFP. */
+:root{
+  --navy:#2e3370; --gold:#cf8a34; --ink:#1f1f1f; --muted:#555; --paper:#fff;
+  --cream:#f6ebcb; --sand:#e3c995; --lav:#e6eaf5; --lavline:#b3bedd;
+  --bg:#f7f7f9; --surface:#fff; --fg:var(--ink); --fg2:var(--muted); --line:var(--lavline);
+  --head:var(--navy); --accent:var(--gold); --tint:var(--lav); --warn:#a4400b; --ok:#2c6e3a;
+  --sans:Carlito,Calibri,"Segoe UI",Roboto,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#121428; --surface:#1b1e3a; --fg:#ecedf5; --fg2:#a9adc8; --line:#3a3f6e;
+  --head:#b9c2ea; --accent:#e0a24f; --tint:#24284b; --warn:#f0965a; --ok:#7fcf8f; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121428; --surface:#1b1e3a; --fg:#ecedf5; --fg2:#a9adc8; --line:#3a3f6e;
+  --head:#b9c2ea; --accent:#e0a24f; --tint:#24284b; --warn:#f0965a; --ok:#7fcf8f; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font:15px/1.4 var(--sans);padding-bottom:env(safe-area-inset-bottom,0px)}
+header{background:var(--navy);color:#fff;padding:calc(env(safe-area-inset-top,0px) + 10px) 16px 10px;border-bottom:2px solid var(--gold);display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+header h1{margin:0;font-size:20px;font-weight:700}
+header small{font-size:12px;opacity:.85}
+.wrap{max-width:720px;margin:0 auto;padding:0 16px}
+/* visor */
+.viewer{position:relative;background:#0b0d1c;height:56vh;min-height:300px;overflow:hidden;margin:0 -16px}
+@media (min-width:720px){.viewer{margin:0}}
+video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.cross{position:absolute;inset:0;pointer-events:none}
+.cross::before,.cross::after{content:"";position:absolute;left:50%;top:50%;background:#ffd36b;box-shadow:0 0 0 1px rgba(0,0,0,.55)}
+.cross::before{width:64px;height:2px;transform:translate(-50%,-50%)}
+.cross::after{width:2px;height:64px;transform:translate(-50%,-50%)}
+.ring{position:absolute;left:50%;top:50%;width:18px;height:18px;border:2px solid #ffd36b;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 0 1px rgba(0,0,0,.5)}
+.read{position:absolute;left:0;right:0;bottom:0;display:grid;grid-template-columns:1fr 1fr;gap:1px;background:rgba(11,13,28,.55)}
+.read div{background:rgba(46,51,112,.72);color:#fff;padding:8px 12px}
+.read span{display:block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;opacity:.85}
+.read b{font-size:30px;font-variant-numeric:tabular-nums;line-height:1.1}
+.read em{font-style:normal;font-size:14px;opacity:.9;margin-left:6px}
+.stab{position:absolute;top:10px;left:10px;right:10px;display:flex;justify-content:space-between;gap:8px;font-size:13px;color:#fff}
+.chip{background:rgba(11,13,28,.7);padding:4px 8px;border-left:3px solid var(--gold)}
+.chip.bad{border-left-color:#ff7a3d}.chip.good{border-left-color:#6fd38a}
+.start{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center;color:#fff;background:rgba(11,13,28,.82)}
+.start p{max-width:34ch;margin:0;font-size:15px}
+.msg{color:#ffd36b;font-size:14px;max-width:38ch}
+/* botones */
+button{font:inherit;cursor:pointer;border-radius:0}
+.btn{background:var(--navy);color:#fff;border:0;padding:12px 18px;font-weight:700;font-size:16px}
+.btn.gold{background:var(--gold);color:#1f1f1f}
+.btn.ghost{background:transparent;color:var(--head);border:1px solid var(--line);font-weight:700;padding:10px 14px;font-size:15px}
+.btn:focus-visible,.btn.ghost:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.btn:disabled{opacity:.45;cursor:default}
+.bar{display:flex;gap:8px;padding-block:12px;flex-wrap:wrap;align-items:stretch}
+.bar .btn.gold{flex:1 1 180px}
+.bar input{flex:1 1 140px;min-width:0}
+input,select{font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line);padding:10px;border-radius:0}
+h2{color:var(--head);font-size:17px;margin:22px 0 8px;text-wrap:balance}
+section{min-width:0}
+.card{background:var(--surface);border:1px solid var(--line);padding:12px}
+canvas{display:block;width:100%;height:240px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--fg2);margin-top:6px}
+.legend i{display:inline-block;width:18px;height:0;border-top:2px dashed;vertical-align:middle;margin-right:5px}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}
+th{background:var(--navy);color:#fff;text-align:left;padding:6px 8px;font-size:12px;font-weight:700}
+td{border-bottom:1px solid var(--line);padding:6px 8px;vertical-align:top}
+tr:nth-child(even) td{background:var(--tint)}
+td.num{text-align:right;white-space:nowrap}
+td button{background:none;border:0;color:var(--warn);font-size:18px;padding:0 4px}
+.empty{color:var(--fg2);font-style:italic;padding:8px 0}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--fg2);font-weight:700}
+.note{font-size:13px;color:var(--fg2);margin:6px 0 0}
+.note a{color:var(--head)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--head);font-weight:700;padding:6px 0}
+ol{padding-left:22px;margin:6px 0}
+li{margin:4px 0}
+.callout{border-left:4px solid var(--gold);background:var(--surface);padding:8px 12px;font-size:14px;margin-top:10px}
+footer{color:var(--fg2);font-size:12px;padding-block:24px;text-align:center}
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);transform:translateX(-50%);background:var(--navy);color:#fff;padding:10px 16px;border-left:4px solid var(--gold);font-size:14px;z-index:9;max-width:90vw}
+@media (prefers-reduced-motion:no-preference){.toast{transition:opacity .2s}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Clinómetro solar</h1>
+  <small>GIM - CIFP Virgen de Las Nieves</small>
+</header>
+
+<div class="wrap">
+  <div class="viewer" id="viewer">
+    <video id="video" playsinline muted autoplay></video>
+    <div class="cross"><div class="ring"></div></div>
+    <div class="stab">
+      <span class="chip" id="chipStab">Esperando sensores</span>
+      <span class="chip" id="chipRef" hidden>Azimut sin referencia norte</span>
+    </div>
+    <div class="read">
+      <div><span>Elevación</span><b id="vElev">--,-°</b></div>
+      <div><span>Azimut (0° = Sur)</span><b id="vAz">--°</b><em id="vCard"></em></div>
+    </div>
+    <div class="start" id="startPanel">
+      <p>Centre la cruz en el punto más alto del obstáculo y guarde la lectura. El móvil puede ir en vertical u horizontal.</p>
+      <button class="btn gold" id="btnStart" type="button">Iniciar cámara y sensores</button>
+      <div class="msg" id="startMsg"></div>
+    </div>
+  </div>
+
+  <div class="bar">
+    <button class="btn gold" id="btnSave" type="button" disabled>Guardar punto</button>
+    <input id="inNote" type="text" placeholder="Nota (p. ej. cornisa edificio)" aria-label="Nota del punto">
+  </div>
+
+  <section>
+    <h2>Perfil del horizonte</h2>
+    <div class="card">
+      <canvas id="chart" aria-label="Perfil de obstáculos sobre las trayectorias solares"></canvas>
+      <div class="legend">
+        <span><i style="color:var(--gold)"></i>21 junio</span>
+        <span><i style="color:var(--head)"></i>21 marzo / 21 septiembre</span>
+        <span><i style="color:var(--warn)"></i>21 diciembre</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Puntos medidos</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>N.º</th><th>Azimut</th><th>Elevación</th><th>Desv.</th><th>Nota</th><th></th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="empty" id="emptyMsg">Todavía no hay puntos. Se recomienda una medida cada 10-15° de azimut, de este a oeste pasando por el sur.</div>
+    <div class="bar">
+      <button class="btn" id="btnCsv" type="button">Descargar CSV</button>
+      <button class="btn ghost" id="btnCopy" type="button">Copiar tabla</button>
+      <button class="btn ghost" id="btnClear" type="button">Borrar todo</button>
+    </div>
+    <div class="callout" id="confirmClear" hidden>
+      ¿Borrar todos los puntos? Esta acción no se puede deshacer.
+      <div class="bar"><button class="btn" id="btnClearYes" type="button">Sí, borrar</button><button class="btn ghost" id="btnClearNo" type="button">Cancelar</button></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Ajustes</h2>
+    <div class="card">
+      <div class="grid2">
+        <label for="inDecl">Declinación magnética (°, oeste negativo)
+          <input id="inDecl" type="number" step="0.1" inputmode="decimal" value="-4.5">
+        </label>
+        <label for="inLat">Latitud del lugar (°)
+          <input id="inLat" type="number" step="0.01" inputmode="decimal" value="28.68">
+        </label>
+        <label for="inAvg">Promedio al guardar
+          <select id="inAvg"><option value="500">0,5 s</option><option value="1000" selected>1 s</option><option value="2000">2 s</option></select>
+        </label>
+      </div>
+      <p class="note">La declinación de la isla está en torno a 4-5° oeste; el valor exacto del día se obtiene en la <a href="https://www.ngdc.noaa.gov/geomag/calculators/magcalc.shtml" target="_blank" rel="noopener">calculadora de la NOAA</a>.</p>
+      <details>
+        <summary>Calibrar la elevación</summary>
+        <p class="note">Coloque el móvil boca arriba sobre una superficie nivelada (compruébela con un nivel de burbuja) y pulse el botón sin tocarlo. La lectura debe ser −90°; la diferencia se guarda como corrección.</p>
+        <div class="bar">
+          <button class="btn ghost" id="btnCal" type="button" disabled>Calibrar ahora</button>
+          <button class="btn ghost" id="btnCalReset" type="button">Quitar corrección</button>
+        </div>
+        <p class="note" id="calInfo"></p>
+      </details>
+    </div>
+  </section>
+
+  <section>
+    <h2>Procedimiento</h2>
+    <div class="card">
+      <ol>
+        <li>Situarse en el punto del campo que se quiere estudiar (normalmente el borde inferior del generador).</li>
+        <li>Calibrar la brújula moviendo el móvil en forma de ocho y alejarse de barandillas, estructuras metálicas y cuadros eléctricos.</li>
+        <li>Centrar la cruz en el borde superior del obstáculo, esperar a que la lectura sea estable y pulsar <b>Guardar punto</b>.</li>
+        <li>Repetir cada 10-15° de azimut y en cada esquina o cambio de altura del obstáculo.</li>
+        <li>Descargar el CSV y comprobar sobre el diagrama qué parte de las trayectorias solares queda tapada.</li>
+      </ol>
+      <p class="note">Convenio de azimut: 0° = Sur, este negativo y oeste positivo (el mismo del pliego del IDAE y de PVGIS). El CSV incluye también el rumbo respecto al norte geográfico.</p>
+    </div>
+  </section>
+
+  <footer>CIFP Virgen de Las Nieves - La Palma - Gestión del montaje de instalaciones solares fotovoltaicas</footer>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function(){
+"use strict";
+var D2R=Math.PI/180, R2D=180/Math.PI;
+var $=function(id){return document.getElementById(id)};
+var store={get:function(k,d){try{var v=localStorage.getItem(k);return v===null?d:JSON.parse(v)}catch(e){return d}},
+           set:function(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+
+var state={
+  points:store.get("clino.points",[]),
+  offset:store.get("clino.offset",0),
+  decl:store.get("clino.decl",-4.5),
+  lat:store.get("clino.lat",28.68),
+  avg:store.get("clino.avg",1000),
+  samples:[], absolute:false, gotData:false, iosHeading:null
+};
+$("inDecl").value=state.decl; $("inLat").value=state.lat; $("inAvg").value=String(state.avg);
+
+function fmt(n,d){return n.toFixed(d).replace(".",",")}
+function norm180(a){a=((a%360)+360)%360;return a>180?a-360:a}
+function norm360(a){return ((a%360)+360)%360}
+function cardinal(h){var c=["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSO","SO","OSO","O","ONO","NO","NNO"];return c[Math.round(norm360(h)/22.5)%16]}
+function toast(t){var el=$("toast");el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(function(){el.hidden=true},2200)}
+
+/* Dirección del eje de la cámara trasera (−Z del dispositivo) en el sistema Este-Norte-Arriba,
+   a partir de alpha, beta, gamma (orden Z-X'-Y'' de la especificación W3C). */
+function cameraVector(a,b,g){
+  a*=D2R;b*=D2R;g*=D2R;
+  var cA=Math.cos(a),sA=Math.sin(a),cB=Math.cos(b),sB=Math.sin(b),cG=Math.cos(g),sG=Math.sin(g);
+  return {x:-(cG*sA*sB+cA*sG), y:-(sA*sG-cA*cG*sB), z:-(cB*cG)};
+}
+
+function onOrient(e,isAbs){
+  if(e.beta==null||e.gamma==null)return;
+  var v=cameraVector(e.alpha||0,e.beta,e.gamma);
+  var elev=Math.asin(Math.max(-1,Math.min(1,v.z)))*R2D;
+  var hx=v.x,hy=v.y;
+  if(isAbs){state.absolute=true}
+  if(e.webkitCompassHeading!=null){
+    /* iOS: rumbo magnético ya resuelto por el sistema */
+    var h=e.webkitCompassHeading*D2R; hx=Math.sin(h); hy=Math.cos(h); state.absolute=true;
+  }
+  state.gotData=true;
+  var t=performance.now();
+  state.samples.push({t:t,e:elev,x:hx,y:hy});
+  while(state.samples.length&&t-state.samples[0].t>2500)state.samples.shift();
+}
+
+function average(ms){
+  var t=performance.now(),n=0,se=0,se2=0,sx=0,sy=0;
+  for(var i=state.samples.length-1;i>=0;i--){var s=state.samples[i];if(t-s.t>ms)break;n++;se+=s.e;se2+=s.e*s.e;sx+=s.x;sy+=s.y}
+  if(!n)return null;
+  var me=se/n, sd=Math.sqrt(Math.max(0,se2/n-me*me));
+  var headMag=Math.atan2(sx,sy)*R2D;
+  var headTrue=norm360(headMag+state.decl);
+  return {elev:me+state.offset, raw:me, sd:sd, n:n, head:headTrue, az:norm180(headTrue-180)};
+}
+
+function startSensors(){
+  var handlerAbs=function(e){onOrient(e,true)};
+  var handler=function(e){ if(!state.absolute||e.webkitCompassHeading!=null) onOrient(e,!!e.absolute) };
+  if("ondeviceorientationabsolute" in window){window.addEventListener("deviceorientationabsolute",handlerAbs)}
+  window.addEventListener("deviceorientation",handler);
+}
+
+async function start(){
+  var msg=[];
+  $("btnStart").disabled=true;
+  try{
+    if(typeof DeviceOrientationEvent!=="undefined"&&typeof DeviceOrientationEvent.requestPermission==="function"){
+      var p=await DeviceOrientationEvent.requestPermission();
+      if(p!=="granted")msg.push("No se ha concedido el acceso a los sensores de orientación.");
+    }
+  }catch(e){msg.push("No se ha podido pedir permiso para los sensores.")}
+  startSensors();
+  if(!window.isSecureContext){msg.push("La página debe abrirse con https:// para usar la cámara y los sensores.")}
+  try{
+    var stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}},audio:false});
+    var v=$("video");v.srcObject=stream;await v.play().catch(function(){});
+  }catch(e){msg.push("Cámara no disponible ("+(e&&e.name||"error")+"). Las lecturas siguen funcionando apuntando con la parte trasera del móvil.")}
+  try{if("wakeLock" in navigator)await navigator.wakeLock.request("screen")}catch(e){}
+  setTimeout(function(){
+    if(!state.gotData){msg.push("Este dispositivo no envía datos de orientación. Hace falta un móvil o tableta con giroscopio y brújula.")}
+    if(msg.length){$("startMsg").textContent=msg.join(" ");$("btnStart").textContent="Continuar";$("btnStart").disabled=false;
+      $("btnStart").onclick=function(){$("startPanel").hidden=true}}
+    else{$("startPanel").hidden=true}
+  },1500);
+  $("btnSave").disabled=false;$("btnCal").disabled=false;
+  requestAnimationFrame(loop);
+}
+$("btnStart").addEventListener("click",start);
+
+var lastUI=0;
+function loop(t){
+  requestAnimationFrame(loop);
+  if(t-lastUI<120)return; lastUI=t;
+  var a=average(350); if(!a)return;
+  $("vElev").textContent=fmt(a.elev,1)+"°";
+  $("vAz").textContent=(a.az>0?"+":"")+Math.round(a.az)+"°";
+  $("vCard").textContent=cardinal(a.head);
+  var full=average(state.avg);
+  var chip=$("chipStab");
+  if(full&&full.sd<0.4){chip.textContent="Lectura estable";chip.className="chip good"}
+  else{chip.textContent="Moviéndose ±"+fmt(full?full.sd:0,1)+"°";chip.className="chip bad"}
+  $("chipRef").hidden=state.absolute;
+}
+
+$("btnSave").addEventListener("click",function(){
+  var a=average(state.avg);
+  if(!a){toast("Sin datos de los sensores");return}
+  state.points.push({az:+a.az.toFixed(1),head:+a.head.toFixed(1),elev:+a.elev.toFixed(1),sd:+a.sd.toFixed(2),
+    note:$("inNote").value.trim(),date:new Date().toISOString(),abs:state.absolute});
+  store.set("clino.points",state.points);
+  render();
+  if(navigator.vibrate)navigator.vibrate(40);
+  toast("Punto "+state.points.length+" guardado: "+fmt(a.elev,1)+"° a "+Math.round(a.az)+"°"+(a.sd>0.8?" (lectura poco estable)":""));
+});
+
+$("btnCal").addEventListener("click",function(){
+  var a=average(2000);
+  if(!a){toast("Sin datos de los sensores");return}
+  if(a.raw>-80){toast("El móvil no está boca arriba. Colóquelo plano con la pantalla hacia arriba.");return}
+  state.offset=+(-90-a.raw).toFixed(2);store.set("clino.offset",state.offset);calInfo();toast("Corrección guardada");
+});
+$("btnCalReset").addEventListener("click",function(){state.offset=0;store.set("clino.offset",0);calInfo();toast("Corrección eliminada")});
+function calInfo(){$("calInfo").textContent=state.offset?("Corrección aplicada: "+(state.offset>0?"+":"")+fmt(state.offset,2)+"°"):"Sin corrección aplicada."}
+
+$("inDecl").addEventListener("change",function(){var v=parseFloat(this.value);if(!isNaN(v)){state.decl=v;store.set("clino.decl",v)}});
+$("inLat").addEventListener("change",function(){var v=parseFloat(this.value);if(!isNaN(v)){state.lat=v;store.set("clino.lat",v);drawChart()}});
+$("inAvg").addEventListener("change",function(){state.avg=+this.value;store.set("clino.avg",state.avg)});
+
+function render(){
+  var tb=$("tbody");tb.textContent="";
+  state.points.forEach(function(p,i){
+    var tr=document.createElement("tr");
+    var cells=[String(i+1),(p.az>0?"+":"")+fmt(p.az,0)+"°",fmt(p.elev,1)+"°","±"+fmt(p.sd,1)+"°",p.note||""];
+    cells.forEach(function(c,j){var td=document.createElement("td");td.textContent=c;if(j<4)td.className="num";tr.appendChild(td)});
+    var td=document.createElement("td"),b=document.createElement("button");
+    b.type="button";b.textContent="×";b.setAttribute("aria-label","Eliminar punto "+(i+1));
+    b.onclick=function(){state.points.splice(i,1);store.set("clino.points",state.points);render()};
+    td.appendChild(b);tr.appendChild(td);tb.appendChild(tr);
+  });
+  $("emptyMsg").hidden=state.points.length>0;
+  drawChart();
+}
+
+function sunPath(lat,decl){
+  var out=[],phi=lat*D2R,d=decl*D2R;
+  for(var h=-180;h<=180;h+=2){
+    var H=h*D2R;
+    var sinel=Math.sin(phi)*Math.sin(d)+Math.cos(phi)*Math.cos(d)*Math.cos(H);
+    var el=Math.asin(sinel)*R2D;
+    if(el<0)continue;
+    var az=Math.atan2(Math.sin(H),Math.cos(H)*Math.sin(phi)-Math.tan(d)*Math.cos(phi))*R2D;
+    out.push([az,el]);
+  }
+  return out;
+}
+
+function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()}
+function drawChart(){
+  var c=$("chart"),dpr=window.devicePixelRatio||1,w=c.clientWidth,h=c.clientHeight;
+  if(!w)return;
+  c.width=w*dpr;c.height=h*dpr;var g=c.getContext("2d");g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,w,h);
+  var L=34,R=8,T=8,B=26,pw=w-L-R,ph=h-T-B,azMin=-150,azMax=150,elMax=90;
+  var X=function(a){return L+(a-azMin)/(azMax-azMin)*pw},Y=function(e){return T+ph-(e/elMax)*ph};
+  g.font="12px "+css("--sans");g.lineWidth=1;
+  g.strokeStyle=css("--line");g.fillStyle=css("--fg2");
+  for(var e=0;e<=90;e+=15){g.beginPath();g.moveTo(L,Y(e));g.lineTo(L+pw,Y(e));g.stroke();g.textAlign="right";g.fillText(e+"°",L-5,Y(e)+4)}
+  [[-120,"−120"],[-90,"E"],[-60,"−60"],[-30,"−30"],[0,"S"],[30,"30"],[60,"60"],[90,"O"],[120,"120"]].forEach(function(t){
+    g.beginPath();g.moveTo(X(t[0]),T);g.lineTo(X(t[0]),T+ph);g.stroke();g.textAlign="center";g.fillText(t[1],X(t[0]),h-8)});
+  /* trayectorias solares */
+  [[23.44,css("--accent")],[0,css("--head")],[-23.44,css("--warn")]].forEach(function(d){
+    var p=sunPath(state.lat,d[0]);g.strokeStyle=d[1];g.lineWidth=2;g.setLineDash([6,4]);g.beginPath();
+    p.forEach(function(q,i){if(q[0]<azMin||q[0]>azMax)return;var x=X(q[0]),y=Y(q[1]);i?g.lineTo(x,y):g.moveTo(x,y)});g.stroke();
+  });
+  g.setLineDash([]);
+  /* obstáculos */
+  var pts=state.points.filter(function(p){return p.az>=azMin&&p.az<=azMax}).slice().sort(function(a,b){return a.az-b.az});
+  if(pts.length){
+    var navy=css("--head");
+    g.beginPath();g.moveTo(X(pts[0].az),Y(0));
+    pts.forEach(function(p){g.lineTo(X(p.az),Y(Math.max(0,p.elev)))});
+    g.lineTo(X(pts[pts.length-1].az),Y(0));g.closePath();
+    g.globalAlpha=.28;g.fillStyle=navy;g.fill();g.globalAlpha=1;
+    g.strokeStyle=navy;g.lineWidth=2;g.beginPath();
+    pts.forEach(function(p,i){var x=X(p.az),y=Y(Math.max(0,p.elev));i?g.lineTo(x,y):g.moveTo(x,y)});g.stroke();
+    g.fillStyle=navy;pts.forEach(function(p){g.beginPath();g.arc(X(p.az),Y(Math.max(0,p.elev)),3.5,0,7);g.fill()});
+  }
+}
+window.addEventListener("resize",drawChart);
+if(window.matchMedia)window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change",drawChart);
+
+function csvText(sep){
+  var rows=[["n","azimut_sur_deg","rumbo_norte_deg","elevacion_deg","desviacion_deg","nota","fecha_hora","ref_norte"]];
+  state.points.forEach(function(p,i){rows.push([i+1,fmt(p.az,1),fmt(p.head,1),fmt(p.elev,1),fmt(p.sd,2),p.note.replace(/[;\t\n]/g," "),p.date,p.abs?"si":"no"])});
+  return rows.map(function(r){return r.join(sep)}).join("\r\n");
+}
+$("btnCsv").addEventListener("click",function(){
+  if(!state.points.length){toast("No hay puntos que exportar");return}
+  var blob=new Blob(["﻿"+csvText(";")],{type:"text/csv;charset=utf-8"});
+  var a=document.createElement("a");a.href=URL.createObjectURL(blob);
+  a.download="perfil_horizonte_"+new Date().toISOString().slice(0,10)+".csv";
+  document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},1000);
+});
+$("btnCopy").addEventListener("click",function(){
+  if(!state.points.length){toast("No hay puntos que copiar");return}
+  var t=csvText("\t");
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(function(){toast("Tabla copiada. Se puede pegar en una hoja de cálculo.")},function(){toast("No se ha podido copiar")})}
+  else toast("Este navegador no permite copiar");
+});
+$("btnClear").addEventListener("click",function(){if(state.points.length)$("confirmClear").hidden=false});
+$("btnClearNo").addEventListener("click",function(){$("confirmClear").hidden=true});
+$("btnClearYes").addEventListener("click",function(){state.points=[];store.set("clino.points",[]);$("confirmClear").hidden=true;render()});
+
+calInfo();render();
+})();
+</script>
+</body>
+</html>
