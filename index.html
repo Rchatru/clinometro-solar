@@ -278,12 +278,19 @@ async function start(){
     var v=$("video");v.srcObject=stream;await v.play().catch(function(){});
   }catch(e){msg.push("Cámara no disponible ("+(e&&e.name||"error")+"). Las lecturas siguen funcionando apuntando con la parte trasera del móvil.")}
   try{if("wakeLock" in navigator)await navigator.wakeLock.request("screen")}catch(e){}
-  setTimeout(function(){
-    if(!state.gotData){msg.push("Este dispositivo no envía datos de orientación. Hace falta un móvil o tableta con giroscopio y brújula.")}
-    if(msg.length){$("startMsg").textContent=msg.join(" ");$("btnStart").textContent="Continuar";$("btnStart").disabled=false;
-      $("btnStart").onclick=function(){$("startPanel").hidden=true}}
-    else{$("startPanel").hidden=true}
-  },1500);
+  /* Algunos Android tardan unos segundos en enviar la primera lectura de orientación:
+     se cierra el panel en cuanto llegan datos y solo se avisa si siguen sin llegar a los 5 s. */
+  var t0=performance.now();
+  (function wait(){
+    if(state.gotData&&!msg.length){$("startPanel").hidden=true;return}
+    if(state.gotData||performance.now()-t0>5000){
+      if(!state.gotData)msg.push("Este dispositivo no envía datos de orientación. Hace falta un móvil o tableta con giroscopio y brújula.");
+      $("startMsg").textContent=msg.join(" ");$("btnStart").textContent="Continuar";$("btnStart").disabled=false;
+      $("btnStart").onclick=function(){$("startPanel").hidden=true};
+      return;
+    }
+    setTimeout(wait,200);
+  })();
   $("btnSave").disabled=false;$("btnCal").disabled=false;
   requestAnimationFrame(loop);
 }
@@ -294,6 +301,7 @@ function loop(t){
   requestAnimationFrame(loop);
   if(t-lastUI<120)return; lastUI=t;
   var a=average(350); if(!a)return;
+  if(!$("startPanel").hidden&&$("startMsg").textContent.indexOf("no envía datos")>=0)$("startPanel").hidden=true;
   $("vElev").textContent=fmt(a.elev,1)+"°";
   $("vAz").textContent=(a.az>0?"+":"")+Math.round(a.az)+"°";
   $("vCard").textContent=cardinal(a.head);
