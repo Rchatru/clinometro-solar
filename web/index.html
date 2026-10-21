@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f151d">
+<title>Clinómetro Solar</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app" id="app">
+
+  <!-- MEDIR -->
+  <main class="view view-measure" id="view-measure" data-view="measure">
+    <video id="video" playsinline muted autoplay></video>
+    <div class="vignette"></div>
+    <div class="tapzone" id="tapzone" hidden></div>
+
+    <div class="hud-top">
+      <canvas id="tape" class="tape" aria-hidden="true"></canvas>
+      <div class="chips">
+        <span class="chip" id="chipStab"><i></i><span>Esperando sensores</span></span>
+        <span class="chip warn" id="chipRef" hidden><i></i><span>Sin norte magnético</span></span>
+      </div>
+    </div>
+
+    <div class="reticle" aria-hidden="true">
+      <span class="r-h r-l"></span><span class="r-h r-r"></span>
+      <span class="r-v r-t"></span><span class="r-v r-b"></span>
+      <span class="r-ring"></span><span class="r-dot"></span>
+    </div>
+
+    <div class="hud-bottom">
+      <div class="readout">
+        <div class="ro">
+          <span class="ro-label">Elevación</span>
+          <span class="ro-val"><b id="vElev">––,–</b><small>°</small></span>
+        </div>
+        <div class="ro ro-right">
+          <span class="ro-label">Azimut <em>S = 0°</em></span>
+          <span class="ro-val"><b id="vAz">–––</b><small>°</small></span>
+          <span class="ro-sub" id="vCard">rumbo –</span>
+        </div>
+      </div>
+      <div class="shutter-row">
+        <button class="count" id="btnGoPoints" type="button" aria-label="Ver puntos guardados"><b id="vCount">0</b><span>puntos</span></button>
+        <button class="shutter" id="btnSave" type="button" disabled aria-label="Guardar punto"><span></span><b id="countdown" hidden></b></button>
+        <button class="count ghost" id="btnUndo" type="button" disabled aria-label="Deshacer último punto">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
+          <span>deshacer</span>
+        </button>
+      </div>
+    </div>
+
+    <section class="onboard" id="startPanel">
+      <div class="onboard-card">
+        <p class="eyebrow">Estudio de sombras</p>
+        <h1>Clinómetro <em>solar</em></h1>
+        <ol class="steps">
+          <li><span><b>Sitúese</b> en el punto del campo que quiere estudiar, normalmente el borde inferior del generador.</span></li>
+          <li><span><b>Centre la cruz</b> en el borde superior del obstáculo y espere a que la lectura sea estable.</span></li>
+          <li><span><b>Guarde un punto</b> cada 10-15° de azimut, de este a oeste, y en cada esquina.</span></li>
+        </ol>
+        <button class="btn primary" id="btnStart" type="button">Activar cámara y sensores</button>
+        <p class="onboard-msg" id="startMsg" role="status"></p>
+      </div>
+    </section>
+  </main>
+
+  <!-- DIAGRAMA -->
+  <section class="view view-page" id="view-chart" data-view="chart" hidden>
+    <header class="page-head">
+      <p class="eyebrow">Perfil del horizonte</p>
+      <h2>Diagrama <em>solar</em></h2>
+    </header>
+    <div class="seg" role="group" aria-label="Detalle del diagrama">
+      <button type="button" id="modeSimple" aria-pressed="true">Simplificado</button>
+      <button type="button" id="modeFull" aria-pressed="false">Completo</button>
+    </div>
+    <label class="field compare" for="inCompare"><span>Comparar con</span>
+      <select id="inCompare"><option value="">Ninguno</option></select>
+    </label>
+    <div class="chart-wrap">
+      <canvas id="chart" aria-label="Silueta de los obstáculos sobre las trayectorias solares"></canvas>
+    </div>
+    <div class="legend">
+      <div class="ramp"><span>dic</span><i></i><span>jun</span></div>
+      <div class="keys" id="chartKeys"></div>
+      <p>Trayectoria del sol el día 21 de cada mes, de diciembre (azul) a junio (naranja). La zona sombreada es la silueta medida: donde una trayectoria pasa por dentro, el sol queda tapado.</p>
+      <p id="noteFull" hidden>Las horas son solares: a las 12 h el sol está al sur. En Canarias la hora oficial va unos 70 min por delante en invierno y 130 min en verano.</p>
+    </div>
+  </section>
+
+  <!-- PUNTOS -->
+  <section class="view view-page" id="view-points" data-view="points" hidden>
+    <header class="page-head">
+      <p class="eyebrow" id="pointsEyebrow">Sin puntos</p>
+      <h2 id="projTitle">Proyecto</h2>
+    </header>
+    <div class="projbar">
+      <button class="btn" id="btnProjects" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+        Proyectos</button>
+      <button class="btn" id="btnRename" type="button">Renombrar</button>
+    </div>
+    <div class="confirm neutral" id="renameBox" hidden>
+      <label class="field col" for="inRename"><span>Nombre del proyecto</span><input id="inRename" type="text" maxlength="60" class="text"></label>
+      <div class="actions"><button class="btn primary" id="btnRenameOk" type="button">Guardar</button><button class="btn" id="btnRenameNo" type="button">Cancelar</button></div>
+    </div>
+    <div class="empty" id="emptyMsg">
+      <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M4 38h40"/><path d="M8 38V24l8-4v18M16 38V14l10-4v28M26 38V20l12 3v15"/></svg>
+      <p>Todavía no hay puntos. Vaya a <b>Medir</b>, apunte al borde superior del obstáculo y pulse el disparador.</p>
+    </div>
+    <ol class="plist" id="plist"></ol>
+    <div class="actions" id="pointActions" hidden>
+      <button class="btn primary" id="btnShare" type="button">Exportar CSV</button>
+      <button class="btn" id="btnCopy" type="button">Copiar tabla</button>
+      <button class="btn danger" id="btnClear" type="button">Borrar todo</button>
+    </div>
+    <div class="confirm" id="confirmClear" hidden>
+      <p>Se borrarán todos los puntos. Esta acción no se puede deshacer.</p>
+      <div class="actions">
+        <button class="btn danger-solid" id="btnClearYes" type="button">Borrar</button>
+        <button class="btn" id="btnClearNo" type="button">Cancelar</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- AJUSTES -->
+  <section class="view view-page" id="view-settings" data-view="settings" hidden>
+    <header class="page-head">
+      <p class="eyebrow">Configuración</p>
+      <h2>Ajustes</h2>
+    </header>
+
+    <div class="group">
+      <h3>Ubicación del proyecto</h3>
+      <div class="actions"><button class="btn primary" id="btnGps" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7"/></svg>
+        Usar GPS</button></div>
+      <p class="hint" id="gpsInfo"></p>
+      <label class="field" for="inLat"><span>Latitud</span>
+        <span class="input-unit"><input id="inLat" type="number" step="0.01" inputmode="decimal"><i>°</i></span>
+      </label>
+      <label class="field" for="inDecl"><span>Declinación magnética <small>oeste negativa</small></span>
+        <span class="input-unit"><input id="inDecl" type="number" step="0.1" inputmode="decimal"><i>°</i></span>
+      </label>
+      <p class="hint">Con el GPS, la declinación se calcula con el modelo magnético mundial WMM2025. También puede escribirla a mano.</p>
+    </div>
+
+    <div class="group">
+      <h3>Medición</h3>
+      <label class="field" for="inDelay"><span>Disparo</span>
+        <select id="inDelay"><option value="0">Inmediato</option><option value="2">Retardo 2 s</option><option value="5">Retardo 5 s</option></select>
+      </label>
+      <label class="field switch" for="inTap"><span>Tocar el visor para disparar <small>toda la imagen actúa como botón</small></span>
+        <input id="inTap" type="checkbox" role="switch"></label>
+      <label class="field switch" for="inVol" id="volRow" hidden><span>Botón de volumen como disparador</span>
+        <input id="inVol" type="checkbox" role="switch"></label>
+      <label class="field" for="inAvg"><span>Promedio al guardar</span>
+        <select id="inAvg"><option value="500">0,5 s</option><option value="1000">1 s</option><option value="2000">2 s</option></select>
+      </label>
+      <div class="field col">
+        <span>Calibración de la elevación</span>
+        <p class="hint">Coloque el móvil boca arriba sobre una superficie nivelada y pulse <b>Calibrar</b> sin tocarlo.</p>
+        <div class="actions">
+          <button class="btn" id="btnCal" type="button" disabled>Calibrar</button>
+          <button class="btn" id="btnCalReset" type="button">Quitar corrección</button>
+        </div>
+        <p class="hint" id="calInfo"></p>
+      </div>
+    </div>
+
+    <div class="group">
+      <h3>Apariencia</h3>
+      <div class="seg wide" role="group" aria-label="Tema">
+        <button type="button" data-theme-opt="system">Sistema</button>
+        <button type="button" data-theme-opt="light">Claro</button>
+        <button type="button" data-theme-opt="dark">Oscuro</button>
+      </div>
+    </div>
+
+    <div class="group about">
+      <h3>Convenio</h3>
+      <p class="hint">Azimut 0° = sur, este negativo y oeste positivo, como en el pliego del IDAE y en PVGIS. El CSV incluye también el rumbo respecto al norte geográfico.</p>
+      <p class="hint muted">Clinómetro Solar · versión <span id="appVersion">2.0</span></p>
+    </div>
+  </section>
+
+  <!-- NAVEGACIÓN -->
+  <nav class="tabbar" aria-label="Secciones">
+    <button type="button" data-tab="measure" aria-current="page">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/></svg>
+      <span>Medir</span>
+    </button>
+    <button type="button" data-tab="chart">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h18"/><path d="M5 20a7 9 0 0 1 14 0"/><circle cx="15.5" cy="9" r="2"/></svg>
+      <span>Diagrama</span>
+    </button>
+    <button type="button" data-tab="points">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1.2"/><circle cx="4.5" cy="12" r="1.2"/><circle cx="4.5" cy="18" r="1.2"/></svg>
+      <span>Puntos</span>
+    </button>
+    <button type="button" data-tab="settings">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+      <span>Ajustes</span>
+    </button>
+  </nav>
+
+  <div class="sheet-bg" id="sheetBg" hidden></div>
+  <section class="sheet" id="sheet" hidden aria-label="Proyectos">
+    <div class="sheet-grip"></div>
+    <header class="sheet-head"><h3>Proyectos</h3><button class="btn primary" id="btnNewProj" type="button">Nuevo</button></header>
+    <ul class="projlist" id="projList"></ul>
+  </section>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+</div>
+<script src="vendor/geomagnetism.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

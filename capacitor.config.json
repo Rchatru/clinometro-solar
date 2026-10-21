@@ -1,0 +1,7 @@
+{
+  "appId": "io.github.rchatru.clinometrosolar",
+  "appName": "Clinómetro Solar",
+  "webDir": "web",
+  "android": { "backgroundColor": "#05080c" },
+  "plugins": { "SystemBars": { "insetsHandling": "css" } }
+}
