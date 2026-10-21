@@ -65,7 +65,9 @@ svg{fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-l
 
 /* ---------- Visor ---------- */
 .view-measure{background:#05080c;overflow:hidden;color:var(--hud)}
-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#05080c}
+.idle-art{position:absolute;inset:0;background:linear-gradient(#0b1220,#16212f 60%,#0b1220)}
+.idle-art svg{position:absolute;left:0;right:0;top:calc(var(--sat) + 70px);height:40%;width:100%;overflow:visible}
 .vignette{position:absolute;inset:0;pointer-events:none;
   background:linear-gradient(to bottom,rgba(0,0,0,.45),transparent 22%,transparent 62%,rgba(0,0,0,.55))}
 

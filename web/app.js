@@ -4,12 +4,16 @@
 (function () {
 "use strict";
 
-var VERSION = "2.0.0-beta2";
+var VERSION = "2.0.0-beta3";
 var D2R = Math.PI / 180, R2D = 180 / Math.PI;
 var $ = function (id) { return document.getElementById(id); };
 var Cap = window.Capacitor;
 var isNative = !!(Cap && Cap.isNativePlatform && Cap.isNativePlatform());
-var plugin = function (name) { try { return Cap && Cap.registerPlugin ? Cap.registerPlugin(name) : null; } catch (e) { return null; } };
+var _plugins = {};
+var plugin = function (name) {
+  if (_plugins[name]) return _plugins[name];
+  try { return (_plugins[name] = Cap && Cap.registerPlugin ? Cap.registerPlugin(name) : null); } catch (e) { return null; }
+};
 
 /* ---------------- Almacenamiento ---------------- */
 var KEY = "cs.v2";
@@ -183,7 +187,9 @@ async function start() {
   if (!window.isSecureContext) msg.push("La página debe abrirse con https:// para usar la cámara y los sensores.");
   try {
     var stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
-    var v = $("video"); v.srcObject = stream; v.play().catch(function () {});
+    var v = $("video"); v.srcObject = stream;
+    v.addEventListener("playing", function () { v.hidden = false; document.querySelector(".idle-art").hidden = true; }, { once: true });
+    v.play().catch(function () {});
   } catch (e) { msg.push("No se ha podido abrir la cámara (" + (e && e.name || "error") + "). Las lecturas funcionan igual apuntando con la parte trasera del móvil."); }
   try { if ("wakeLock" in navigator) navigator.wakeLock.request("screen").catch(function () {}); } catch (e) {}
   sens.started = true;
@@ -426,7 +432,7 @@ async function shareText(text, name, mime) {
   if (isNative) {
     var FS = plugin("Filesystem"), Share = plugin("Share");
     var r = await FS.writeFile({ path: name, data: text, directory: "CACHE", encoding: "utf8" });
-    await Share.share({ title: name, url: r.uri, dialogTitle: "Exportar " + name });
+    await Share.share({ title: name, files: [r.uri], dialogTitle: "Exportar " + name });
     return;
   }
   var blob = new Blob(["﻿" + text], { type: mime });
@@ -438,7 +444,7 @@ async function shareText(text, name, mime) {
   document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
 }
 $("btnShare").addEventListener("click", function () {
-  shareText(csvText(";"), fileName("csv"), "text/csv").catch(function (e) { if (!/cancel/i.test(String(e && e.message))) toast("No se ha podido exportar"); });
+  shareText(csvText(";"), fileName("csv"), "text/csv").catch(function (e) { if (!/cancel/i.test(String(e && e.message))) toast("No se ha podido exportar: " + (e && e.message || e), 5000); });
 });
 $("btnCopy").addEventListener("click", function () {
   var t = csvText("\t");
@@ -826,7 +832,7 @@ async function shareBinary(base64, name, mime) {
   if (isNative) {
     var FS = plugin("Filesystem"), Share = plugin("Share");
     var res = await FS.writeFile({ path: name, data: base64, directory: "CACHE" });
-    await Share.share({ title: name, url: res.uri, dialogTitle: "Compartir " + name });
+    await Share.share({ title: name, files: [res.uri], dialogTitle: "Compartir " + name });
     return;
   }
   var bin = atob(base64), arr = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
@@ -846,7 +852,7 @@ $("btnReport").addEventListener("click", async function () {
     await shareBinary(b64, fileName("pdf"), "application/pdf");
   } catch (e) {
     $("busy").hidden = true;
-    if (!/cancel/i.test(String(e && e.message))) { toast("No se ha podido generar el informe"); console.error(e); }
+    if (!/cancel/i.test(String(e && e.message))) { toast("No se ha podido generar el informe: " + (e && e.message || e), 5000); console.error(e); }
   }
 });
 

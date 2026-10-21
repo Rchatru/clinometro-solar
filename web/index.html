@@ -12,7 +12,20 @@
 
   <!-- MEDIR -->
   <main class="view view-measure" id="view-measure" data-view="measure">
-    <video id="video" playsinline muted autoplay></video>
+    <div class="idle-art" aria-hidden="true">
+      <svg viewBox="0 0 400 270" preserveAspectRatio="xMidYMax meet">
+        <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0b1220"/><stop offset="1" stop-color="#1a2638"/></linearGradient></defs>
+                <g fill="none" stroke-width="2" stroke-linecap="round" opacity=".55">
+          <path d="M92 250 A108 96 0 0 1 308 250" stroke="#4a86e8"/>
+          <path d="M64 250 A136 150 0 0 1 336 250" stroke="#9b7fd0"/>
+          <path d="M40 250 A160 196 0 0 1 360 250" stroke="#ff9447"/>
+        </g>
+        <path d="M24 250V214h44v-28h52v18h40v46z" fill="#0b1220" opacity=".9"/>
+        <path d="M-400 250h1200" stroke="#2b3a52" stroke-width="2"/>
+        <circle cx="300" cy="96" r="9" fill="#ff9447"/>
+      </svg>
+    </div>
+    <video id="video" playsinline muted autoplay hidden poster="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"></video>
     <div class="vignette"></div>
     <div class="tapzone" id="tapzone" hidden></div>
 
@@ -260,6 +273,7 @@
 
   <div class="toast" id="toast" role="status" hidden></div>
 </div>
+<script src="vendor/capacitor.js"></script>
 <script src="vendor/geomagnetism.js"></script>
 <script src="idae.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
