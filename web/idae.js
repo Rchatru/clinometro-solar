@@ -126,7 +126,7 @@ function ids() { var out = []; ["A", "B", "C", "D"].forEach(function (L) { for (
 /* Límites de la tabla I del pliego (pérdidas por sombras) */
 var LIMITS = [{ key: "general", name: "General", max: 10 }, { key: "superposicion", name: "Superposición", max: 15 }, { key: "integracion", name: "Integración arquitectónica", max: 20 }];
 
-var api = { TABLES: TABLES, pick: pick, compute: compute, outline: outline, center: center, ids: ids, LIMITS: LIMITS, sunPos: sunPos };
+var api = { TABLES: TABLES, pick: pick, compute: compute, profileFn: profileFn, outline: outline, center: center, ids: ids, LIMITS: LIMITS, sunPos: sunPos };
 if (typeof window !== "undefined") window.IDAE = api;
 if (typeof module !== "undefined") module.exports = api;
 })();

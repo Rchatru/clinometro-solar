@@ -12,6 +12,7 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        registerPlugin(MagnetometerPlugin.class);
         super.onCreate(savedInstanceState);
         // La pantalla no se apaga mientras se mide.
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);

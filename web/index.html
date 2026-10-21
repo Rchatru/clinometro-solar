@@ -34,6 +34,8 @@
       <div class="chips">
         <span class="chip" id="chipStab"><i></i><span>Esperando sensores</span></span>
         <span class="chip warn" id="chipRef" hidden><i></i><span>Sin norte magnético</span></span>
+        <span class="chip sweep" id="chipSweep" hidden><i></i><span>Barriendo: recorra el borde y suelte</span></span>
+        <span class="chip warn" id="chipMag" hidden><i></i><span>Interferencia magnética</span></span>
       </div>
     </div>
 
@@ -72,7 +74,7 @@
         <ol class="steps">
           <li><span><b>Sitúese</b> en el punto del campo que quiere estudiar, normalmente el borde inferior del generador.</span></li>
           <li><span><b>Centre la cruz</b> en el borde superior del obstáculo y espere a que la lectura sea estable.</span></li>
-          <li><span><b>Guarde un punto</b> cada 10-15° de azimut, de este a oeste, y en cada esquina.</span></li>
+          <li><span><b>Guarde un punto</b> cada 10-15° de azimut y en cada esquina, o <b>mantenga pulsado</b> el disparador y recorra el borde.</span></li>
         </ol>
         <button class="btn primary" id="btnStart" type="button">Activar cámara y sensores</button>
         <p class="onboard-msg" id="startMsg" role="status"></p>
@@ -105,6 +107,28 @@
       <p id="noteFull" hidden>Las horas son solares: a las 12 h el sol está al sur. En Canarias la hora oficial va unos 70 min por delante en invierno y 130 min en verano.</p>
     </div>
 
+    <section class="group cal" id="calPanel" aria-labelledby="calTitle">
+      <div>
+        <p class="eyebrow">Hora oficial · día 15 de cada mes</p>
+        <h3 id="calTitle">¿Cuándo hay sombra?</h3>
+      </div>
+      <div class="cal-wrap"><canvas id="cal" aria-label="Calendario de sombras por mes y hora"></canvas></div>
+      <div class="cal-keys">
+        <span><i class="k-sun"></i>Sol directo</span><span><i class="k-shade"></i>Sombra</span><span><i class="k-night"></i>Sol bajo el horizonte</span>
+      </div>
+      <p class="hint" id="calSummary"></p>
+      <div class="query">
+        <h4>Posición del sol</h4>
+        <div class="query-row">
+          <input id="inQDate" type="date" aria-label="Fecha">
+          <input id="inQTime" type="time" step="300" aria-label="Hora oficial">
+          <button class="btn" id="btnNow" type="button">Ahora</button>
+        </div>
+        <p class="query-res" id="queryRes"></p>
+        <p class="hint">Toque una casilla del calendario para consultarla. El sol aparece también en el diagrama.</p>
+      </div>
+    </section>
+
     <section class="group loss" id="lossPanel" aria-labelledby="lossTitle">
       <div class="loss-head">
         <div>
@@ -132,6 +156,31 @@
         </table>
       </div>
       <p class="hint" id="lossExact"></p>
+    </section>
+
+    <section class="group pv" id="pvPanel" aria-labelledby="pvTitle">
+      <div>
+        <p class="eyebrow">PVGIS · Comisión Europea · conexión a red</p>
+        <h3 id="pvTitle">Producción estimada</h3>
+      </div>
+      <div class="loss-inputs">
+        <label class="field" for="inKwp"><span>Potencia pico</span>
+          <span class="input-unit"><input id="inKwp" type="number" step="0.1" min="0.1" inputmode="decimal"><i>kWp</i></span></label>
+        <label class="field" for="inSysLoss"><span>Pérdidas del sistema <small>cableado, inversor, suciedad…</small></span>
+          <span class="input-unit"><input id="inSysLoss" type="number" step="1" min="0" max="50" inputmode="decimal"><i>%</i></span></label>
+      </div>
+      <p class="hint">Usa la ubicación del proyecto y la inclinación y orientación de los módulos del apartado anterior. PVGIS ya tiene en cuenta el relieve lejano; la app le añade los obstáculos medidos.</p>
+      <div class="actions"><button class="btn primary" id="btnPvgis" type="button">Calcular con PVGIS</button></div>
+      <div class="pv-res" id="pvRes" hidden>
+        <div class="pv-nums">
+          <div><span>Sin obstáculos</span><b id="pvBase">–</b><small>kWh/año</small></div>
+          <div><span>Con obstáculos</span><b id="pvShaded">–</b><small>kWh/año</small></div>
+          <div class="pv-loss"><span>Pérdida</span><b id="pvLoss">–</b><small id="pvLossPct"></small></div>
+        </div>
+        <canvas id="pvChart" aria-label="Producción mensual con y sin obstáculos"></canvas>
+        <div class="cal-keys"><span><i class="k-pvb"></i>Sin obstáculos</span><span><i class="k-pvs"></i>Con obstáculos</span></div>
+        <p class="hint" id="pvMeta"></p>
+      </div>
     </section>
   </section>
 
@@ -194,6 +243,32 @@
         <span class="input-unit"><input id="inDecl" type="number" step="0.1" inputmode="decimal"><i>°</i></span>
       </label>
       <p class="hint">Con el GPS, la declinación se calcula con el modelo magnético mundial WMM2025. También puede escribirla a mano.</p>
+    </div>
+
+    <div class="group" id="corrGroup">
+      <h3>Punto de estudio</h3>
+      <label class="field switch" for="inCorrOn"><span>Medir desde otro punto <small>por ejemplo, desde el suelo bajo la pérgola</small></span>
+        <input id="inCorrOn" type="checkbox" role="switch"></label>
+      <div class="corr-body" id="corrBody" hidden>
+        <p class="hint">Indique dónde está el punto de estudio respecto al móvil. La app recalcula cada punto como se vería desde allí.</p>
+        <label class="field" for="inDz"><span>Desnivel <small>m; positivo si el punto de estudio está más alto</small></span>
+          <span class="input-unit"><input id="inDz" type="number" step="0.05" inputmode="decimal"><i>m</i></span></label>
+        <label class="field" for="inDh"><span>Desplazamiento horizontal <small>m; opcional</small></span>
+          <span class="input-unit"><input id="inDh" type="number" step="0.05" min="0" inputmode="decimal"><i>m</i></span></label>
+        <label class="field" for="inDhAz" id="dhAzRow"><span>Hacia el azimut <small>0° = sur, este negativo</small></span>
+          <span class="input-unit"><input id="inDhAz" type="number" step="1" inputmode="decimal"><i>°</i></span></label>
+        <label class="field" for="inDistMode"><span>Distancia a los obstáculos</span>
+          <select id="inDistMode"><option value="point">Medida en cada punto</option><option value="wall">Fachada recta</option></select></label>
+        <div class="corr-wall" id="wallBox" hidden>
+          <label class="field" for="inWallD"><span>Distancia perpendicular a la fachada</span>
+            <span class="input-unit"><input id="inWallD" type="number" step="0.1" min="0" inputmode="decimal"><i>m</i></span></label>
+          <label class="field" for="inWallAz"><span>Dirección de la perpendicular <small>azimut, 0° = sur</small></span>
+            <span class="input-unit"><input id="inWallAz" type="number" step="1" inputmode="decimal"><i>°</i></span></label>
+          <div class="actions"><button class="btn" id="btnWallAz" type="button">Tomar la dirección del visor</button></div>
+          <p class="hint">Apunte con el móvil en perpendicular a la fachada y pulse el botón. La app calcula la distancia de cada punto a partir de esta.</p>
+        </div>
+        <p class="hint" id="corrInfo"></p>
+      </div>
     </div>
 
     <div class="group">

@@ -25,6 +25,7 @@
   --warn:#d9822b;
   --danger:#c2412d;
   --tab-bg:rgba(255,255,255,.86);
+  --cal-sun:#ffc98f;--cal-shade:#36465c;--cal-night:#eef1f4;
   --shadow:0 1px 2px rgba(18,27,38,.06),0 8px 24px rgba(18,27,38,.06);
 
   /* visor (siempre oscuro, va sobre la cámara) */
@@ -46,11 +47,11 @@
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#0d131b;--surface:#151d28;--surface-2:#1a2431;--ink:#e8edf3;--ink-2:#93a1b3;--line:#263343;
   --sun:#ff9447;--sun-ink:#ffab6e;--winter:#6aa2ff;--ok:#46c98b;--warn:#f0a050;--danger:#ff7a63;
-  --tab-bg:rgba(13,19,27,.86);--shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25);color-scheme:dark}}
+  --tab-bg:rgba(13,19,27,.86);--cal-sun:#e08a3c;--cal-shade:#5d7290;--cal-night:#1a2431;--shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25);color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0d131b;--surface:#151d28;--surface-2:#1a2431;--ink:#e8edf3;--ink-2:#93a1b3;--line:#263343;
   --sun:#ff9447;--sun-ink:#ffab6e;--winter:#6aa2ff;--ok:#46c98b;--warn:#f0a050;--danger:#ff7a63;
-  --tab-bg:rgba(13,19,27,.86);--shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25);color-scheme:dark}
+  --tab-bg:rgba(13,19,27,.86);--cal-sun:#e08a3c;--cal-shade:#5d7290;--cal-night:#1a2431;--shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25);color-scheme:dark}
 
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;overscroll-behavior:none}
@@ -292,3 +293,47 @@ input.text{font-family:var(--f-ui);width:100%}
 .busy span{width:36px;height:36px;border-radius:50%;border:3px solid rgba(255,255,255,.25);border-top-color:var(--sun);animation:spin .8s linear infinite}
 .busy p{margin:0;font-weight:500}
 @keyframes spin{to{transform:rotate(360deg)}}
+
+/* ---------- Corrección al punto de estudio ---------- */
+.corr-body,.corr-wall{display:flex;flex-direction:column;gap:12px}
+.p-corr{grid-column:2/-1;display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;font-size:12.5px;color:var(--ink-2)}
+.plist li.has-photo .p-corr{grid-column:3/-1}
+.p-corr b{font-family:var(--f-mono);font-weight:500;color:var(--sun-ink)}
+.p-dist{display:inline-flex;align-items:center;gap:6px}
+.p-dist input{width:76px;padding:5px 8px;font-size:13px;text-align:right}
+.p-corr .warn{color:var(--warn)}
+select{font-family:var(--f-ui)}
+
+/* ---------- Calendario de sombras ---------- */
+.cal-wrap{margin:0 -4px}
+#cal{display:block;width:100%;height:300px;touch-action:manipulation;cursor:pointer}
+.cal-keys{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:13px;color:var(--ink-2)}
+.cal-keys span{display:inline-flex;align-items:center;gap:6px}
+.cal-keys i{width:14px;height:14px;border-radius:4px;display:inline-block}
+.k-sun{background:var(--cal-sun)}.k-shade{background:var(--cal-shade)}.k-night{background:var(--cal-night);border:1px solid var(--line)}
+.query{border-top:1px solid var(--line);padding-top:14px;display:flex;flex-direction:column;gap:10px}
+.query h4{margin:0;font:400 20px var(--f-display)}
+.query-row{display:flex;gap:8px;flex-wrap:wrap}
+.query-row input{flex:1 1 120px;min-width:0;font-family:var(--f-ui)}
+.query-res{margin:0;font-size:15px;line-height:1.5}
+.query-res b{font-family:var(--f-mono);font-weight:500}
+.query-res .st{display:inline-block;margin-top:4px;padding:3px 10px;border-radius:999px;font-weight:600;font-size:13px}
+.st.sun{background:color-mix(in srgb,var(--sun) 18%,var(--surface));color:var(--sun-ink)}
+.st.shade{background:color-mix(in srgb,var(--ink) 12%,var(--surface));color:var(--ink)}
+.st.night{background:var(--surface-2);color:var(--ink-2)}
+
+/* ---------- PVGIS ---------- */
+.pv-res{display:flex;flex-direction:column;gap:12px}
+.pv-nums{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.pv-nums div{display:flex;flex-direction:column;gap:2px;min-width:0;padding:10px;border-radius:14px;background:var(--surface-2)}
+.pv-nums span{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+.pv-nums b{font:500 22px var(--f-mono);letter-spacing:-.02em}
+.pv-nums small{font-size:12px;color:var(--ink-2)}
+.pv-loss b{color:var(--sun-ink)}
+#pvChart{display:block;width:100%;height:180px}
+.k-pvb{background:var(--line)}.k-pvs{background:var(--sun)}
+.chip.sweep i{background:#ff5d4a;animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.3}}
+.shutter.sweeping{border-color:#ff5d4a}
+.shutter.sweeping span{background:#ff5d4a;transform:scale(.55);border-radius:14px}
+.shutter{touch-action:none;-webkit-user-select:none;user-select:none}
