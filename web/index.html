@@ -76,6 +76,7 @@
     <div class="seg" role="group" aria-label="Detalle del diagrama">
       <button type="button" id="modeSimple" aria-pressed="true">Simplificado</button>
       <button type="button" id="modeFull" aria-pressed="false">Completo</button>
+      <button type="button" id="modeIdae" aria-pressed="false">Porciones IDAE</button>
     </div>
     <label class="field compare" for="inCompare"><span>Comparar con</span>
       <select id="inCompare"><option value="">Ninguno</option></select>
@@ -87,11 +88,42 @@
       <div class="ramp"><span>dic</span><i></i><span>jun</span></div>
       <div class="keys" id="chartKeys"></div>
       <p>Trayectoria del sol el día 21 de cada mes, de diciembre (azul) a junio (naranja). La zona sombreada es la silueta medida: donde una trayectoria pasa por dentro, el sol queda tapado.</p>
+      <p id="noteIdae" hidden>Porciones A1…D14 del pliego del IDAE, calculadas para la latitud del proyecto. El color indica la fracción de cada porción que tapa el obstáculo.</p>
       <p id="noteFull" hidden>Las horas son solares: a las 12 h el sol está al sur. En Canarias la hora oficial va unos 70 min por delante en invierno y 130 min en verano.</p>
     </div>
+
+    <section class="group loss" id="lossPanel" aria-labelledby="lossTitle">
+      <div class="loss-head">
+        <div>
+          <p class="eyebrow">Método del IDAE · Anexo III</p>
+          <h3 id="lossTitle">Pérdidas por sombras</h3>
+        </div>
+        <div class="loss-big"><b id="lossVal">–</b><small>%</small></div>
+      </div>
+      <p class="pill" id="lossPill"></p>
+      <div class="loss-inputs">
+        <label class="field" for="inBeta"><span>Inclinación de los módulos <small>β, 0° = horizontal</small></span>
+          <span class="input-unit"><input id="inBeta" type="number" step="1" min="0" max="90" inputmode="decimal"><i>°</i></span></label>
+        <label class="field" for="inAlpha"><span>Orientación de los módulos <small>α, 0° = sur, este negativo</small></span>
+          <span class="input-unit"><input id="inAlpha" type="number" step="1" min="-90" max="90" inputmode="decimal"><i>°</i></span></label>
+        <label class="field" for="inTable"><span>Tabla de referencia</span><select id="inTable"></select></label>
+        <label class="field" for="inCase"><span>Tipo de instalación</span>
+          <select id="inCase"><option value="general">General (≤ 10 %)</option><option value="superposicion">Superposición (≤ 15 %)</option><option value="integracion">Integración arquitectónica (≤ 20 %)</option></select></label>
+      </div>
+      <p class="hint" id="tableNote"></p>
+      <div class="tablewrap" id="lossTableWrap">
+        <table class="ltable">
+          <thead><tr><th>Porción</th><th>Tapado</th><th>Factor</th><th>Tabla</th><th>Pérdida</th></tr></thead>
+          <tbody id="lossBody"></tbody>
+          <tfoot><tr><td colspan="4">Total (factores del pliego)</td><td id="lossFoot"></td></tr></tfoot>
+        </table>
+      </div>
+      <p class="hint" id="lossExact"></p>
+    </section>
   </section>
 
   <!-- PUNTOS -->
+
   <section class="view view-page" id="view-points" data-view="points" hidden>
     <header class="page-head">
       <p class="eyebrow" id="pointsEyebrow">Sin puntos</p>
@@ -113,7 +145,10 @@
     </div>
     <ol class="plist" id="plist"></ol>
     <div class="actions" id="pointActions" hidden>
-      <button class="btn primary" id="btnShare" type="button">Exportar CSV</button>
+      <button class="btn primary" id="btnReport" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>
+        Informe PDF</button>
+      <button class="btn" id="btnShare" type="button">Exportar CSV</button>
       <button class="btn" id="btnCopy" type="button">Copiar tabla</button>
       <button class="btn danger" id="btnClear" type="button">Borrar todo</button>
     </div>
@@ -157,6 +192,8 @@
         <input id="inTap" type="checkbox" role="switch"></label>
       <label class="field switch" for="inVol" id="volRow" hidden><span>Botón de volumen como disparador</span>
         <input id="inVol" type="checkbox" role="switch"></label>
+      <label class="field switch" for="inPhoto"><span>Guardar foto con cada punto <small>con la retícula y las lecturas impresas</small></span>
+        <input id="inPhoto" type="checkbox" role="switch"></label>
       <label class="field" for="inAvg"><span>Promedio al guardar</span>
         <select id="inAvg"><option value="500">0,5 s</option><option value="1000">1 s</option><option value="2000">2 s</option></select>
       </label>
@@ -214,9 +251,18 @@
     <ul class="projlist" id="projList"></ul>
   </section>
 
+  <div class="lightbox" id="lightbox" hidden>
+    <img id="lbImg" alt="">
+    <p id="lbCap"></p>
+    <button class="btn" id="lbClose" type="button">Cerrar</button>
+  </div>
+  <div class="busy" id="busy" hidden><span></span><p id="busyMsg">Generando informe…</p></div>
+
   <div class="toast" id="toast" role="status" hidden></div>
 </div>
 <script src="vendor/geomagnetism.js"></script>
+<script src="idae.js"></script>
+<script src="vendor/jspdf.umd.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

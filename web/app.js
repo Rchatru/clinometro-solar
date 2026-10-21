@@ -4,7 +4,7 @@
 (function () {
 "use strict";
 
-var VERSION = "2.0.0";
+var VERSION = "2.0.0-beta2";
 var D2R = Math.PI / 180, R2D = 180 / Math.PI;
 var $ = function (id) { return document.getElementById(id); };
 var Cap = window.Capacitor;
@@ -25,7 +25,8 @@ function newProject(name, from) {
   var lat = from ? from.lat : DEFAULT_LOC.lat, lon = from ? from.lon : DEFAULT_LOC.lon;
   var d = from ? from.decl : wmmDecl(lat, lon);
   return { id: uid(), name: name, created: Date.now(), updated: Date.now(), lat: lat, lon: lon,
-           decl: d == null ? -4.5 : +d.toFixed(1), declSource: from ? from.declSource : "wmm", points: [] };
+           decl: d == null ? -4.5 : +d.toFixed(1), declSource: from ? from.declSource : "wmm", points: [],
+           beta: from ? from.beta : 30, alphaMod: from ? from.alphaMod : 0, idaeTable: "auto", idaeCase: from ? from.idaeCase : "general" };
 }
 
 var db = load();
@@ -47,6 +48,14 @@ if (!db || !db.projects || !db.projects.length) {
   db.projects.push(p0); db.currentId = p0.id; save();
 }
 var S = db.settings;
+function withDefaults(p) {
+  if (p.beta == null) p.beta = 30; if (p.alphaMod == null) p.alphaMod = 0;
+  if (!p.idaeTable) p.idaeTable = "auto"; if (!p.idaeCase) p.idaeCase = "general";
+  p.points.forEach(function (q) { if (!q.id) q.id = uid(); });
+  return p;
+}
+if (S.photos == null) S.photos = true;
+db.projects.forEach(withDefaults);
 function proj() { for (var i = 0; i < db.projects.length; i++) if (db.projects[i].id === db.currentId) return db.projects[i]; db.currentId = db.projects[0].id; return db.projects[0]; }
 function touch() { proj().updated = Date.now(); save(); }
 
@@ -65,6 +74,63 @@ function haptic(kind) {
   try { if (navigator.vibrate) navigator.vibrate(kind === "light" ? 15 : 40); } catch (e) {}
 }
 function dateStr(t) { var d = new Date(t); return d.toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" }); }
+
+/* ---------------- Fotos (IndexedDB) ---------------- */
+var Photos = (function () {
+  var dbp = null, urls = {};
+  function open() {
+    if (dbp) return dbp;
+    dbp = new Promise(function (res, rej) {
+      try {
+        var r = indexedDB.open("cs-photos", 1);
+        r.onupgradeneeded = function () { r.result.createObjectStore("photos"); };
+        r.onsuccess = function () { res(r.result); }; r.onerror = function () { rej(r.error); };
+      } catch (e) { rej(e); }
+    });
+    return dbp;
+  }
+  function tx(mode, fn) {
+    return open().then(function (d) { return new Promise(function (res, rej) {
+      var t = d.transaction("photos", mode), st = t.objectStore("photos"), out = fn(st);
+      t.oncomplete = function () { res(out && out.result !== undefined ? out.result : out); }; t.onerror = function () { rej(t.error); };
+    }); });
+  }
+  return {
+    put: function (id, blob) { return tx("readwrite", function (st) { st.put(blob, id); }); },
+    get: function (id) { return tx("readonly", function (st) { return st.get(id); }); },
+    del: function (ids) { ids.forEach(function (id) { if (urls[id]) { URL.revokeObjectURL(urls[id]); delete urls[id]; } }); return tx("readwrite", function (st) { ids.forEach(function (id) { st.delete(id); }); }).catch(function () {}); },
+    url: function (id) {
+      if (urls[id]) return Promise.resolve(urls[id]);
+      return this.get(id).then(function (b) { if (!b) return null; urls[id] = URL.createObjectURL(b); return urls[id]; });
+    }
+  };
+})();
+
+/* Captura del visor con la retícula y las lecturas impresas */
+function capturePhoto(pt, n) {
+  var v = $("video");
+  if (!v.videoWidth) return Promise.resolve(null);
+  var vw = v.videoWidth, vh = v.videoHeight, el = v.getBoundingClientRect();
+  /* recorte igual que se ve en pantalla (object-fit: cover) */
+  var scr = el.width / el.height, src = vw / vh, sw = vw, sh = vh, sx = 0, sy = 0;
+  if (src > scr) { sw = vh * scr; sx = (vw - sw) / 2; } else { sh = vw / scr; sy = (vh - sh) / 2; }
+  var W = Math.min(1080, Math.round(sw)), H = Math.round(W * sh / sw);
+  var c = document.createElement("canvas"); c.width = W; c.height = H;
+  var g = c.getContext("2d");
+  g.drawImage(v, sx, sy, sw, sh, 0, 0, W, H);
+  var cx = W / 2, cy = H / 2, u = W / 400;
+  g.strokeStyle = "#ffd27a"; g.lineWidth = 1.6 * u; g.shadowColor = "rgba(0,0,0,.7)"; g.shadowBlur = 3 * u;
+  g.beginPath(); g.arc(cx, cy, 11 * u, 0, 7); g.stroke();
+  [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) { g.beginPath(); g.moveTo(cx + d[0] * 12 * u, cy + d[1] * 12 * u); g.lineTo(cx + d[0] * 46 * u, cy + d[1] * 46 * u); g.stroke(); });
+  g.shadowBlur = 0;
+  var bh = 44 * u; g.fillStyle = "rgba(10,15,22,.72)"; g.fillRect(0, H - bh, W, bh);
+  g.fillStyle = "#f4f7fb"; g.textBaseline = "middle";
+  g.font = "500 " + 15 * u + "px " + css("--f-mono");
+  g.fillText("#" + n + "  El " + fmt(pt.elev, 1) + "°  Az " + sgn(pt.az, 0) + "°", 12 * u, H - bh / 2);
+  g.font = "500 " + 10.5 * u + "px " + css("--f-ui"); g.textAlign = "right"; g.fillStyle = "rgba(244,247,251,.75)";
+  g.fillText(proj().name + " · " + new Date(pt.t).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" }), W - 12 * u, H - bh / 2);
+  return new Promise(function (res) { c.toBlob(function (b) { res(b); }, "image/jpeg", 0.82); });
+}
 
 /* ---------------- Sensores ---------------- */
 var sens = { samples: [], absolute: false, gotData: false, started: false };
@@ -207,8 +273,12 @@ function savePoint() {
   var a = average(S.avg);
   if (!a) { toast("Sin datos de los sensores"); return; }
   var p = proj();
-  p.points.push({ az: +a.az.toFixed(1), head: +a.head.toFixed(1), elev: +a.elev.toFixed(1), sd: +a.sd.toFixed(2), note: "", t: Date.now(), abs: sens.absolute });
+  var pt = { id: uid(), az: +a.az.toFixed(1), head: +a.head.toFixed(1), elev: +a.elev.toFixed(1), sd: +a.sd.toFixed(2), note: "", t: Date.now(), abs: sens.absolute };
+  p.points.push(pt);
   touch(); haptic();
+  if (S.photos) capturePhoto(pt, p.points.length).then(function (b) {
+    if (!b) return; return Photos.put(pt.id, b).then(function () { pt.photo = true; touch(); });
+  }).catch(function () {});
   renderCounts();
   toast("Punto " + p.points.length + ": " + fmt(a.elev, 1) + "° a " + sgn(Math.round(a.az), 0) + "°" + (a.sd > 0.8 ? " · lectura poco estable" : ""));
 }
@@ -216,7 +286,8 @@ $("btnSave").addEventListener("click", trigger);
 $("tapzone").addEventListener("click", trigger);
 $("btnUndo").addEventListener("click", function () {
   var p = proj(); if (!p.points.length) return;
-  p.points.pop(); touch(); renderCounts(); toast("Último punto eliminado");
+  var gone = p.points.pop(); touch(); renderCounts(); toast("Último punto eliminado");
+  if (gone && gone.photo) Photos.del([gone.id]);
 });
 $("btnGoPoints").addEventListener("click", function () { show("points"); });
 /* Botón de volumen: lo llama la actividad nativa de Android */
@@ -232,7 +303,7 @@ function show(v) {
   document.querySelectorAll("[data-view]").forEach(function (el) { el.hidden = el.dataset.view !== v; });
   document.querySelectorAll("[data-tab]").forEach(function (b) { if (b.dataset.tab === v) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
   $("app").classList.toggle("on-measure", v === "measure");
-  if (v === "chart") { fillCompare(); drawChart(); }
+  if (v === "chart") { fillCompare(); renderLoss(); drawChart(); }
   if (v === "points") renderPoints();
   if (v === "settings") renderSettings();
 }
@@ -251,13 +322,20 @@ function renderPoints() {
   list.textContent = "";
   p.points.forEach(function (q, i) {
     var li = document.createElement("li");
+    if (q.photo) li.className = "has-photo";
     li.innerHTML = '<span class="p-n">' + String(i + 1).padStart(2, "0") + '</span>' +
+      (q.photo ? '<button class="p-thumb" type="button" aria-label="Ver foto del punto ' + (i + 1) + '"><img alt=""></button>' : '') +
       '<div class="p-vals"><span><small>Azimut</small>' + sgn(q.az, 0) + '°</span><span><small>Elevación</small>' + fmt(q.elev, 1) + '°</span><span class="sd"><small>Desv.</small>±' + q.sd.toFixed(1).replace(".", ",") + '°</span></div>' +
       '<button class="p-del" type="button" aria-label="Eliminar punto ' + (i + 1) + '">' + ICON_DEL + '</button>' +
       '<input class="p-note" type="text" placeholder="Añadir nota" aria-label="Nota del punto ' + (i + 1) + '">';
     var inp = li.querySelector(".p-note"); inp.value = q.note || ""; inp.id = "note-" + i;
     inp.addEventListener("change", function () { q.note = inp.value.trim(); touch(); });
-    li.querySelector(".p-del").addEventListener("click", function () { p.points.splice(i, 1); touch(); renderPoints(); renderCounts(); });
+    li.querySelector(".p-del").addEventListener("click", function () { p.points.splice(i, 1); if (q.photo) Photos.del([q.id]); touch(); renderPoints(); renderCounts(); });
+    if (q.photo) {
+      var img = li.querySelector(".p-thumb img");
+      Photos.url(q.id).then(function (u) { if (u) img.src = u; else { q.photo = false; } });
+      li.querySelector(".p-thumb").addEventListener("click", function () { openLightbox(q, i + 1); });
+    }
     list.appendChild(li);
   });
   var has = p.points.length > 0;
@@ -266,7 +344,17 @@ function renderPoints() {
 }
 $("btnClear").addEventListener("click", function () { $("confirmClear").hidden = false; });
 $("btnClearNo").addEventListener("click", function () { $("confirmClear").hidden = true; });
-$("btnClearYes").addEventListener("click", function () { proj().points = []; touch(); $("confirmClear").hidden = true; renderPoints(); renderCounts(); });
+$("btnClearYes").addEventListener("click", function () { Photos.del(proj().points.map(function (q) { return q.id; })); proj().points = []; touch(); $("confirmClear").hidden = true; renderPoints(); renderCounts(); });
+
+function openLightbox(q, n) {
+  Photos.url(q.id).then(function (u) {
+    if (!u) return;
+    $("lbImg").src = u; $("lbCap").textContent = "Punto " + n + " · elevación " + fmt(q.elev, 1) + "° · azimut " + sgn(q.az, 0) + "°" + (q.note ? " · " + q.note : "");
+    $("lightbox").hidden = false;
+  });
+}
+$("lbClose").addEventListener("click", function () { $("lightbox").hidden = true; });
+$("lightbox").addEventListener("click", function (e) { if (e.target === $("lightbox")) $("lightbox").hidden = true; });
 
 /* Renombrar */
 $("btnRename").addEventListener("click", function () { $("inRename").value = proj().name; $("renameBox").hidden = false; $("inRename").focus(); });
@@ -294,11 +382,16 @@ function renderProjects() {
     li.querySelector(".pj-main").addEventListener("click", function () { db.currentId = p.id; save(); closeSheet(); renderPoints(); renderCounts(); toast("Proyecto: " + p.name); });
     li.querySelector(".dup").addEventListener("click", function () {
       var c = JSON.parse(JSON.stringify(p)); c.id = uid(); c.name = p.name + " (copia)"; c.created = c.updated = Date.now();
+      c.points.forEach(function (q, k) {
+        var oldId = p.points[k].id; q.id = uid();
+        if (q.photo) Photos.get(oldId).then(function (b) { if (b) return Photos.put(q.id, b); q.photo = false; save(); }).catch(function () {});
+      });
       db.projects.push(c); save(); renderProjects();
     });
     var del = li.querySelector(".del");
     del.addEventListener("click", function () {
       if (!del.classList.contains("armed")) { del.classList.add("armed"); del.setAttribute("aria-label", "Pulse otra vez para eliminar"); setTimeout(function () { del.classList.remove("armed"); }, 3000); return; }
+      Photos.del(p.points.map(function (q) { return q.id; }));
       db.projects = db.projects.filter(function (x) { return x.id !== p.id; });
       if (!db.projects.length) db.projects.push(newProject("Proyecto 1"));
       if (db.currentId === p.id) db.currentId = db.projects[0].id;
@@ -368,11 +461,16 @@ function mix(a, b, t) { var A = hex2rgb(a), B = hex2rgb(b); return "rgb(" + A.ma
 function monthColor(decl) { var t = (decl + 23.44) / 46.88; return t < .5 ? mix(css("--winter"), "#9b7fd0", t * 2) : mix("#9b7fd0", css("--sun"), (t - .5) * 2); }
 
 function drawChart() {
-  var c = $("chart"), dpr = window.devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
+  var c = $("chart"), w = c.clientWidth, h = c.clientHeight;
   if (!w) return;
+  drawChartOn(c, w, h, window.devicePixelRatio || 1, S.chartMode, true);
+}
+/* Dibuja el diagrama en cualquier lienzo (pantalla o informe) */
+function drawChartOn(c, w, h, dpr, mode, onScreen) {
   c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
   var g = c.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
-  var p = proj(), full = S.chartMode === "full";
+  if (!onScreen) { g.fillStyle = css("--surface"); g.fillRect(0, 0, w, h); }
+  var p = proj(), full = mode === "full";
   var L = 34, R = 10, T = 10, B = 26, pw = w - L - R, ph = h - T - B, azMin = -135, azMax = 135, elMax = 90;
   var X = function (a) { return L + (a - azMin) / (azMax - azMin) * pw; }, Y = function (e) { return T + ph - (e / elMax) * ph; };
   var ink2 = css("--ink-2"), line = css("--line"), ink = css("--ink"), surface = css("--surface");
@@ -403,16 +501,32 @@ function drawChart() {
     if (!dashed) { g.fillStyle = color; pts.forEach(function (q) { g.beginPath(); g.arc(X(q.az), Y(Math.max(0, q.elev)), 3, 0, 7); g.fill(); }); }
   }
   silhouette(p.points, ink, .16, false);
-  var cmp = S.compareId && db.projects.filter(function (x) { return x.id === S.compareId && x.id !== p.id; })[0];
+  var cmp = onScreen && S.compareId && db.projects.filter(function (x) { return x.id === S.compareId && x.id !== p.id; })[0];
   if (cmp) silhouette(cmp.points, css("--winter"), .08, true);
 
+  /* porciones del IDAE */
+  if (mode === "idae" && window.IDAE) {
+    var res = lossResult(), fmap = {};
+    res.cells.forEach(function (c) { fmap[c.id] = c.f; });
+    var sunc = css("--sun");
+    IDAE.ids().forEach(function (id) {
+      var o = IDAE.outline(id, p.lat).map(function (q) { return [Math.max(azMin, Math.min(azMax, q[0])), Math.max(0, q[1])]; });
+      var any = IDAE.outline(id, p.lat).some(function (q) { return q[1] > 0; }); if (!any) return;
+      g.beginPath(); o.forEach(function (q, i) { var x = X(q[0]), y = Y(q[1]); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath();
+      if (fmap[id]) { g.globalAlpha = .15 + .55 * fmap[id]; g.fillStyle = sunc; g.fill(); g.globalAlpha = 1; }
+      g.strokeStyle = ink2; g.globalAlpha = .55; g.lineWidth = 1; g.stroke(); g.globalAlpha = 1;
+      var c = IDAE.center(id, p.lat);
+      if (c[1] > 2) { g.font = "500 9.5px " + css("--f-mono"); g.textAlign = "center"; g.fillStyle = fmap[id] > .5 ? ink : ink2; g.fillText(id, X(c[0]), Y(c[1]) + 3); }
+    });    silhouette(p.points, ink, 0, false);
+  }
   /* trayectorias */
-  if (full) {
+  if (mode === "idae") { /* solo porciones */ }
+  else if (full) {
     g.strokeStyle = ink2; g.globalAlpha = .45; g.lineWidth = 1; g.setLineDash([2, 3]);
     for (var hr = 6; hr <= 18; hr++) { var ln = []; for (var d = -23.44; d <= 23.45; d += 1) ln.push(sunPos(p.lat, d, (hr - 12) * 15)); poly(ln); }
     g.setLineDash([]); g.globalAlpha = 1;
   }
-  MONTHS.forEach(function (m) {
+  if (mode !== "idae") MONTHS.forEach(function (m) {
     if (!full && !m.main) return;
     g.strokeStyle = monthColor(m.d); g.lineWidth = m.main ? 2.2 : 1.3; poly(sunPath(p.lat, m.d));
   });
@@ -424,6 +538,7 @@ function drawChart() {
     g.textAlign = "left";
     MONTHS.forEach(function (m) { var q = sunPos(p.lat, m.d, 0); label(m.l, X(0) + 5, Y(q[1]) + 12, monthColor(m.d)); });
   }
+  if (!onScreen) return;
   /* claves */
   var k = '<span><i style="background:' + ink + ';opacity:.6"></i>' + escapeHtml(p.name) + '</span>';
   if (cmp) k += '<span><i style="background:' + css("--winter") + ';opacity:.6"></i>' + escapeHtml(cmp.name) + '</span>';
@@ -441,18 +556,70 @@ $("inCompare").addEventListener("change", function () { S.compareId = this.value
 function setMode(m) {
   S.chartMode = m; save();
   $("modeSimple").setAttribute("aria-pressed", String(m === "simple")); $("modeFull").setAttribute("aria-pressed", String(m === "full"));
-  $("noteFull").hidden = m !== "full"; drawChart();
+  $("modeIdae").setAttribute("aria-pressed", String(m === "idae"));
+  $("noteFull").hidden = m !== "full"; $("noteIdae").hidden = m !== "idae"; drawChart();
 }
+$("modeIdae").addEventListener("click", function () { setMode("idae"); });
 $("modeSimple").addEventListener("click", function () { setMode("simple"); });
 $("modeFull").addEventListener("click", function () { setMode("full"); });
 window.addEventListener("resize", function () { if (currentView === "chart") drawChart(); });
+
+/* ---------------- Pérdidas por sombras (IDAE) ---------------- */
+function lossTable() {
+  var p = proj();
+  if (p.idaeTable && p.idaeTable !== "auto") for (var i = 0; i < IDAE.TABLES.length; i++) if (IDAE.TABLES[i].id === p.idaeTable) return IDAE.TABLES[i];
+  return IDAE.pick(p.beta, p.alphaMod);
+}
+function lossResult() { var p = proj(); return IDAE.compute(p.points, p.lat, lossTable()); }
+function tLabel(t) { return "Tabla " + t.id + " · β " + t.beta + "°" + (t.beta ? ", α " + (t.alpha > 0 ? "+" : "") + t.alpha + "°" : ""); }
+function renderLoss() {
+  if (!window.IDAE) { $("lossPanel").hidden = true; return; }
+  var p = proj(), t = lossTable(), auto = IDAE.pick(p.beta, p.alphaMod);
+  $("inBeta").value = p.beta; $("inAlpha").value = p.alphaMod; $("inCase").value = p.idaeCase;
+  var sel = $("inTable"); sel.innerHTML = "";
+  var o = document.createElement("option"); o.value = "auto"; o.textContent = "Automática (" + auto.id + ")"; sel.appendChild(o);
+  IDAE.TABLES.forEach(function (x) { var op = document.createElement("option"); op.value = x.id; op.textContent = tLabel(x); sel.appendChild(op); });
+  sel.value = p.idaeTable || "auto";
+  var r = IDAE.compute(p.points, p.lat, t), lim = IDAE.LIMITS.filter(function (l) { return l.key === p.idaeCase; })[0] || IDAE.LIMITS[0];
+  var has = p.points.length > 0;
+  $("lossVal").textContent = has ? r.total.toFixed(1).replace(".", ",") : "–";
+  var pill = $("lossPill");
+  if (!has) { pill.className = "pill"; pill.textContent = "Mida el perfil de obstáculos para calcular las pérdidas"; }
+  else if (r.total <= lim.max) { pill.className = "pill ok"; pill.textContent = "Cumple el límite del " + lim.max + " % (" + lim.name.toLowerCase() + ")"; }
+  else { pill.className = "pill bad"; pill.textContent = "Supera el límite del " + lim.max + " % (" + lim.name.toLowerCase() + ")"; }
+  var notes = [tLabel(t) + "."];
+  if (Math.abs(t.beta - p.beta) > 12 || (t.beta && Math.abs(t.alpha - p.alphaMod) > 15)) notes.push("La superficie no coincide bien con ninguna tabla; el resultado es orientativo.");
+  if (t.note) notes.push(t.note);
+  notes.push("Las tablas del pliego están calculadas para la Península; en Canarias el resultado es una aproximación.");
+  $("tableNote").textContent = notes.join(" ");
+  var tb = $("lossBody"); tb.textContent = "";
+  r.cells.filter(function (c) { return c.f >= 0.02; }).forEach(function (c) {
+    var tr = document.createElement("tr");
+    [c.id, Math.round(c.f * 100) + " %", c.fill.toFixed(2).replace(".", ","), c.v.toFixed(2).replace(".", ","), c.loss.toFixed(2).replace(".", ",")].forEach(function (v, i) {
+      var td = document.createElement("td"); td.textContent = v; if (i === 4 && !c.fill) td.className = "zero"; tr.appendChild(td);
+    });
+    tb.appendChild(tr);
+  });
+  $("lossFoot").textContent = r.total.toFixed(2).replace(".", ",") + " %";
+  $("lossTableWrap").hidden = !r.cells.some(function (c) { return c.f >= 0.02; });
+  $("lossExact").textContent = has ? "Con la fracción tapada exacta de cada porción, sin redondear el factor de llenado: " + r.exact.toFixed(2).replace(".", ",") + " %." : "";
+}
+function onLossInput() {
+  var p = proj();
+  var b = parseFloat($("inBeta").value), a = parseFloat($("inAlpha").value);
+  if (!isNaN(b)) p.beta = Math.max(0, Math.min(90, b));
+  if (!isNaN(a)) p.alphaMod = Math.max(-90, Math.min(90, a));
+  p.idaeTable = $("inTable").value; p.idaeCase = $("inCase").value;
+  touch(); renderLoss(); drawChart();
+}
+["inBeta", "inAlpha", "inTable", "inCase"].forEach(function (id) { $(id).addEventListener("change", onLossInput); });
 
 /* ---------------- Ajustes ---------------- */
 function renderSettings() {
   var p = proj();
   $("inLat").value = p.lat.toFixed(4); $("inDecl").value = p.decl.toFixed(1);
   $("inAvg").value = String(S.avg); $("inDelay").value = String(S.delay);
-  $("inTap").checked = !!S.tap; $("inVol").checked = !!S.vol; $("volRow").hidden = !isNative;
+  $("inTap").checked = !!S.tap; $("inPhoto").checked = !!S.photos; $("inVol").checked = !!S.vol; $("volRow").hidden = !isNative;
   gpsInfo();
   calInfo();
   document.querySelectorAll("[data-theme-opt]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.themeOpt === S.theme)); });
@@ -468,6 +635,7 @@ $("inAvg").addEventListener("change", function () { S.avg = +this.value; save();
 $("inDelay").addEventListener("change", function () { S.delay = +this.value; save(); });
 $("inTap").addEventListener("change", function () { S.tap = this.checked; save(); applyTap(); });
 $("inVol").addEventListener("change", function () { S.vol = this.checked; save(); });
+$("inPhoto").addEventListener("change", function () { S.photos = this.checked; save(); });
 function applyTap() { $("tapzone").hidden = !S.tap; }
 
 function locate(silent) {
@@ -508,6 +676,179 @@ document.querySelectorAll("[data-theme-opt]").forEach(function (b) {
   b.addEventListener("click", function () { S.theme = b.dataset.themeOpt; save(); applyTheme(); renderSettings(); });
 });
 if (window.matchMedia) window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () { if (currentView === "chart") drawChart(); });
+
+/* ---------------- Informe PDF ---------------- */
+function pdfSafe(t) { return String(t).replace(/−/g, "-").replace(/≤/g, "<=").replace(/≥/g, ">=").replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/…/g, "...").replace(/[–—]/g, "-").replace(/β/g, "beta").replace(/α/g, "alfa"); }
+function withTheme(theme, fn) {
+  var r = document.documentElement, prev = r.getAttribute("data-theme");
+  r.setAttribute("data-theme", theme);
+  try { return fn(); } finally { if (prev == null) r.removeAttribute("data-theme"); else r.setAttribute("data-theme", prev); }
+}
+function chartImage(mode, wmm, hmm) {
+  return withTheme("light", function () {
+    var c = document.createElement("canvas"), w = 640, h = Math.round(640 * hmm / wmm);
+    drawChartOn(c, w, h, 2.2, mode, false);
+    return c.toDataURL("image/jpeg", 0.9);
+  });
+}
+function blobToDataURL(b) { return new Promise(function (res) { var r = new FileReader(); r.onload = function () { res(r.result); }; r.readAsDataURL(b); }); }
+
+async function buildReport() {
+  var J = window.jspdf && window.jspdf.jsPDF; if (!J) throw new Error("jsPDF no disponible");
+  var p = proj(), t = lossTable(), r = IDAE.compute(p.points, p.lat, t);
+  var lim = IDAE.LIMITS.filter(function (l) { return l.key === p.idaeCase; })[0] || IDAE.LIMITS[0];
+  var doc = new J({ unit: "mm", format: "a4" });
+  var M = 18, W = 210 - 2 * M, y;
+  var INK = [18, 27, 38], INK2 = [85, 98, 116], LINE = [215, 222, 230], SUN = [236, 122, 44], OK = [31, 157, 99], BAD = [194, 65, 45];
+  function txt(t, x, yy, o) { doc.text(pdfSafe(t), x, yy, o || {}); }
+  function font(st, size, col) { doc.setFont("helvetica", st); doc.setFontSize(size); doc.setTextColor.apply(doc, col || INK); }
+  function rule(yy, col) { doc.setDrawColor.apply(doc, col || LINE); doc.setLineWidth(0.25); doc.line(M, yy, M + W, yy); }
+  function header() {
+    font("bold", 7.5, SUN); txt("CLINÓMETRO SOLAR · ESTUDIO DE SOMBRAS", M, 12);
+    font("normal", 7.5, INK2); txt(p.name, M + W, 12, { align: "right" });
+    rule(14.5);
+  }
+  function need(h) { if (y + h > 297 - 20) { doc.addPage(); header(); y = 24; } }
+  function section(t) { need(14); font("bold", 12, INK); txt(t, M, y); y += 2.5; rule(y, SUN); y += 6; }
+  function table(cols, rows, widths, aligns) {
+    var rh = 6.2;
+    function head() {
+      font("bold", 7.5, INK2); var x = M;
+      cols.forEach(function (c, i) { txt(c.toUpperCase(), aligns[i] === "right" ? x + widths[i] - 1 : x + 1, y, { align: aligns[i] === "right" ? "right" : "left" }); x += widths[i]; });
+      y += 2; rule(y); y += 4.2;
+    }
+    head();
+    rows.forEach(function (row, k) {
+      if (y + rh > 297 - 20) { doc.addPage(); header(); y = 24; head(); }
+      font(row.bold ? "bold" : "normal", 9, INK); var x = M;
+      row.cells.forEach(function (c, i) { txt(c, aligns[i] === "right" ? x + widths[i] - 1 : x + 1, y, { align: aligns[i] === "right" ? "right" : "left", maxWidth: widths[i] - 2 }); x += widths[i]; });
+      y += 1.8; if (k < rows.length - 1) { doc.setDrawColor(235, 239, 243); doc.setLineWidth(0.2); doc.line(M, y, M + W, y); } y += 4.4;
+    });
+  }
+  var dot = function (n, d) { return (n < 0 ? "-" : "") + Math.abs(n).toFixed(d).replace(".", ","); };
+
+  /* ---- Página 1 ---- */
+  header(); y = 30;
+  font("normal", 26, INK); txt(p.name, M, y); y += 7;
+  font("normal", 9.5, INK2);
+  txt("Informe generado el " + new Date().toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" }) + " · " + p.points.length + " puntos medidos", M, y); y += 10;
+
+  /* bloque de resultado */
+  var ok = r.total <= lim.max, bx = M, bw = W, bh = 30;
+  doc.setFillColor(246, 248, 250); doc.setDrawColor.apply(doc, LINE); doc.roundedRect(bx, y, bw, bh, 3, 3, "FD");
+  font("bold", 7.5, INK2); txt("PÉRDIDAS POR SOMBRAS · MÉTODO IDAE (ANEXO III)", bx + 6, y + 8);
+  font("normal", 30, INK); txt(dot(r.total, 1) + " %", bx + 6, y + 22);
+  font("bold", 10, ok ? OK : BAD); txt((ok ? "Cumple" : "No cumple") + " el límite del " + lim.max + " %", bx + 70, y + 14);
+  font("normal", 8.5, INK2);
+  txt("Caso: " + lim.name.toLowerCase() + ". " + tLabel(t) + ".", bx + 70, y + 19.5, { maxWidth: bw - 76 });
+  txt("Fracción tapada exacta, sin redondear: " + dot(r.exact, 2) + " %.", bx + 70, y + 24.5, { maxWidth: bw - 76 });
+  y += bh + 8;
+
+  /* datos del estudio */
+  section("Datos del estudio");
+  var kv = [
+    ["Ubicación", dot(Math.abs(p.lat), 4) + "° " + (p.lat >= 0 ? "N" : "S") + ", " + dot(Math.abs(p.lon), 4) + "° " + (p.lon >= 0 ? "E" : "O")],
+    ["Declinación magnética", dot(p.decl, 1) + "° (" + (p.declSource === "wmm" ? "modelo WMM2025" : "introducida a mano") + ")"],
+    ["Generador fotovoltaico", "inclinación β = " + p.beta + "°, orientación α = " + (p.alphaMod > 0 ? "+" : "") + p.alphaMod + "° (0° = sur, este negativo)"],
+    ["Medición", "clinómetro y brújula del teléfono, promedio de " + (S.avg / 1000).toString().replace(".", ",") + " s por punto"]
+  ];
+  kv.forEach(function (row) { font("normal", 9, INK2); txt(row[0], M, y); font("normal", 9.5, INK); txt(row[1], M + 48, y, { maxWidth: W - 48 }); y += 6.2; });
+  y += 4;
+
+  var ch = 92; need(ch + 24);
+  section("Perfil de obstáculos sobre las trayectorias solares");
+  doc.addImage(chartImage("full", W, ch), "JPEG", M, y, W, ch); y += ch + 4;
+  font("normal", 8, INK2);
+  txt("Trayectoria del sol el día 21 de cada mes (azul: diciembre; naranja: junio) y horas solares. Zona gris: silueta medida de los obstáculos. Azimut 0° = sur, este negativo.", M, y, { maxWidth: W }); y += 10;
+
+  /* ---- Porciones ---- */
+  ch = 92; need(ch + 20);
+  section("Porciones del diagrama afectadas");
+  doc.addImage(chartImage("idae", W, ch), "JPEG", M, y, W, ch); y += ch + 6;
+  var rows = r.cells.filter(function (c) { return c.f >= 0.02; }).map(function (c) {
+    return { cells: [c.id, Math.round(c.f * 100) + " %", c.fill.toFixed(2).replace(".", ","), c.v.toFixed(2).replace(".", ","), c.loss.toFixed(2).replace(".", ",")] };
+  });
+  if (rows.length) {
+    rows.push({ bold: true, cells: ["Total", "", "", "", r.total.toFixed(2).replace(".", ",") + " %"] });
+    table(["Porción", "Fracción tapada", "Factor de llenado", "Valor tabla (%)", "Pérdida (%)"], rows, [30, 38, 38, 34, W - 140], ["left", "right", "right", "right", "right"]);
+  } else { font("normal", 9.5, INK); txt("Ninguna porción queda tapada por el perfil medido.", M, y); y += 8; }
+  y += 3; font("normal", 8, INK2);
+  var meth = "Método del Anexo III del Pliego de Condiciones Técnicas de Instalaciones Conectadas a Red (IDAE, 2011). La geometría de las porciones se calcula para la latitud del proyecto; los valores proceden de la tabla de referencia indicada, elaborada para la Península Ibérica. El factor de llenado se redondea a 0,25, 0,50, 0,75 o 1 como indica el pliego." + (t.note ? " " + t.note : "");
+  need(16); var lines = doc.splitTextToSize(pdfSafe(meth), W); doc.text(lines, M, y); y += lines.length * 3.6 + 6;
+
+  /* ---- Puntos ---- */
+  section("Puntos medidos");
+  table(["N.º", "Azimut", "Rumbo", "Elevación", "Desv.", "Nota"],
+    p.points.map(function (q, i) { return { cells: [String(i + 1), dot(q.az, 1) + "°", dot(q.head, 1) + "°", dot(q.elev, 1) + "°", "±" + q.sd.toFixed(1).replace(".", ",") + "°", q.note || ""] }; }),
+    [14, 24, 24, 26, 20, W - 108], ["left", "right", "right", "right", "right", "left"]);
+
+  /* ---- Fotos ---- */
+  var withPhoto = p.points.map(function (q, i) { return { q: q, n: i + 1 }; }).filter(function (o) { return o.q.photo; });
+  if (withPhoto.length) {
+    doc.addPage(); header(); y = 24; section("Fotografías de los puntos");
+    var cw = (W - 6) / 2, cols = 2, col = 0, rowH = 0;
+    for (var k = 0; k < withPhoto.length; k++) {
+      var o = withPhoto[k], b = await Photos.get(o.q.id).catch(function () { return null; });
+      if (!b) continue;
+      var src = await blobToDataURL(b);
+      var shrunk = await new Promise(function (res) {
+        var im = new Image();
+        im.onload = function () {
+          var k = Math.min(1, 720 / Math.max(im.width, im.height)), c = document.createElement("canvas");
+          c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+          c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
+          res({ url: c.toDataURL("image/jpeg", 0.72), w: c.width, h: c.height });
+        };
+        im.onerror = function () { res(null); }; im.src = src;
+      });
+      if (!shrunk) continue;
+      var url = shrunk.url, dims = [shrunk.w, shrunk.h];
+      var ih = cw * dims[1] / dims[0]; if (ih > 110) ih = 110;
+      var iw = ih * dims[0] / dims[1];
+      if (col === 0) { if (y + ih + 10 > 297 - 20) { doc.addPage(); header(); y = 24; } rowH = 0; }
+      var x = M + col * (cw + 6) + (cw - iw) / 2;
+      doc.addImage(url, "JPEG", x, y, iw, ih);
+      font("normal", 8, INK2); txt("Punto " + o.n + " · elevación " + dot(o.q.elev, 1) + "° · azimut " + dot(o.q.az, 0) + "°" + (o.q.note ? " · " + o.q.note : ""), M + col * (cw + 6), y + ih + 4, { maxWidth: cw });
+      rowH = Math.max(rowH, ih + 10);
+      col++; if (col === cols) { col = 0; y += rowH; }
+    }
+  }
+
+  /* pies de página */
+  var n = doc.getNumberOfPages();
+  for (var i = 1; i <= n; i++) {
+    doc.setPage(i); rule(297 - 14);
+    font("normal", 7.5, INK2); txt("Generado con Clinómetro Solar " + VERSION, M, 297 - 9); txt("Página " + i + " de " + n, M + W, 297 - 9, { align: "right" });
+  }
+  return doc;
+}
+async function shareBinary(base64, name, mime) {
+  if (isNative) {
+    var FS = plugin("Filesystem"), Share = plugin("Share");
+    var res = await FS.writeFile({ path: name, data: base64, directory: "CACHE" });
+    await Share.share({ title: name, url: res.uri, dialogTitle: "Compartir " + name });
+    return;
+  }
+  var bin = atob(base64), arr = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  var blob = new Blob([arr], { type: mime });
+  try { var f = new File([blob], name, { type: mime }); if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: name }); return; } }
+  catch (e) { if (e && e.name === "AbortError") return; }
+  var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+}
+$("btnReport").addEventListener("click", async function () {
+  $("busy").hidden = false;
+  try {
+    var doc = await buildReport();
+    var b64 = doc.output("datauristring").split(",")[1];
+    window.__lastReport = b64;
+    $("busy").hidden = true;
+    await shareBinary(b64, fileName("pdf"), "application/pdf");
+  } catch (e) {
+    $("busy").hidden = true;
+    if (!/cancel/i.test(String(e && e.message))) { toast("No se ha podido generar el informe"); console.error(e); }
+  }
+});
 
 /* ---------------- Inicio ---------------- */
 $("appVersion").textContent = VERSION + (isNative ? " · Android" : " · web");
