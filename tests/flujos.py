@@ -146,9 +146,10 @@ with sync_playwright() as pw:
         pg.click("#btnCorrHelp"); steps = 0
         for i in range(8):
             steps += 1
-            if pg.inner_text("#helpNext") == "Entendido": pg.click("#helpNext"); break
-            pg.click("#helpNext")
-        check("ayuda: 6 pasos y cierre", steps == 6 and not pg.is_visible("#helpSheet"), steps)
+            nb = '.sheet.help[data-help="corr"] .help-next'
+            if pg.inner_text(nb) == "Entendido": pg.click(nb); break
+            pg.click(nb)
+        check("ayuda: 6 pasos y cierre", steps == 6 and not pg.is_visible('.sheet.help[data-help="corr"]'), steps)
 
         # ---------- 6. Corrección al punto de estudio ----------
         pg.check("#inCorrOn"); pg.fill("#inDz", "2.5"); pg.press("#inDz", "Tab")
@@ -212,6 +213,46 @@ with sync_playwright() as pw:
         pg.click("[data-tab=chart]"); pg.wait_for_timeout(200)
         check("vacío: IDAE muestra guion", pg.inner_text("#lossVal") == "–")
         check("vacío: calendario pide medir", "Mida el perfil" in pg.inner_text("#calSummary"))
+
+        # ---------- 9b. Punto de cielo ----------
+        pg.click("[data-tab=measure]"); pg.click("#btnStart"); pg.evaluate(SENS); pg.wait_for_timeout(1200)
+        aim(pg, 120, 30); pg.wait_for_timeout(1300); pg.click("#btnSave"); pg.wait_for_timeout(600)
+        aim(pg, 140, 2); pg.wait_for_timeout(800); pg.click("#btnSky"); pg.wait_for_timeout(300)
+        aim(pg, 160, 25); pg.wait_for_timeout(1300); pg.click("#btnSave"); pg.wait_for_timeout(600)
+        pts = P(pg)["points"]
+        check("cielo: guardado con elevación 0", len(pts) == 3 and pts[1].get("sky") and pts[1]["elev"] == 0, pts)
+        prof = pg.evaluate("(()=>{const d=JSON.parse(localStorage.getItem('cs.v2'));const p=d.projects.find(x=>x.id===d.currentId);const f=IDAE.profileFn(p.points);return [f(-60),f(-55),f(-45),f(-21),f(-20)]})()")
+        check("cielo: el perfil cae a 0 en el hueco", abs(prof[0] - 30) < .5 and prof[1] == 0 and prof[2] == 0 and abs(prof[4] - 25) < .5, prof)
+        pg.click("[data-tab=points]")
+        check("cielo: aparece en la lista", "sin obstáculo" in pg.inner_text("#plist"))
+        # ---------- 9c. Copia de seguridad ----------
+        pg.click("[data-tab=settings]"); pg.select_option("#inBkScope", "all"); pg.check("#inBkPhotos")
+        with pg.expect_download(timeout=30000) as dl: pg.click("#btnBkExport")
+        f = os.path.join(OUT, "copia.json"); dl.value.save_as(f)
+        bk = json.loads(open(f, encoding="utf-8-sig").read())
+        nproj = len(db(pg)["projects"])
+        check("copia: formato y proyectos", bk["formato"] == "clinometro-solar" and len(bk["proyectos"]) == nproj, (bk.get("formato"), len(bk.get("proyectos", []))))
+        # añade una foto de prueba al JSON para comprobar la importación de fotos
+        q0 = bk["proyectos"][0]["points"][0] if bk["proyectos"][0]["points"] else None
+        if q0:
+            bk["fotos"][q0["id"]] = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q=="
+        json.dump(bk, open(f, "w"))
+        pg.set_input_files("#inBkFile", f); pg.wait_for_timeout(800)
+        d2 = db(pg)
+        check("copia: importación sin pisar (duplica con «(importado)»)", len(d2["projects"]) == 2 * nproj and sum(1 for x in d2["projects"] if x["name"].endswith("(importado)")) == nproj, [x["name"] for x in d2["projects"]])
+        ids = [q["id"] for x in d2["projects"] for q in x["points"]]
+        check("copia: identificadores únicos tras importar", len(ids) == len(set(ids)))
+        check("copia: mensaje de resultado", "Importados" in pg.inner_text("#bkInfo"), pg.inner_text("#bkInfo"))
+        bad = os.path.join(OUT, "mala.json"); open(bad, "w").write('{"hola":1}')
+        pg.set_input_files("#inBkFile", bad); pg.wait_for_timeout(400)
+        check("copia: rechaza archivos ajenos", len(db(pg)["projects"]) == 2 * nproj and "no es una copia" in pg.inner_text("#toast"))
+        # ---------- 9d. Guías ----------
+        pg.click("[data-tab=measure]"); pg.click(".hud-help"); pg.wait_for_timeout(200)
+        check("guía de medición se abre", pg.is_visible('.sheet.help[data-help="measure"]'))
+        pg.click('.sheet.help[data-help="measure"] .help-close')
+        pg.click("[data-tab=chart]"); pg.click("#lossTitle [data-open-help]"); pg.wait_for_timeout(200)
+        check("guía del diagrama abre en el paso del IDAE", pg.evaluate("[...document.querySelectorAll('.sheet.help[data-help=chart] .dots i')].findIndex(i=>i.classList.contains('on'))") == 3)
+        pg.click('.sheet.help[data-help="chart"] .help-close')
 
         # ---------- 10. Ajustes persistentes ----------
         pg.click("[data-tab=settings]"); pg.select_option("#inAvg", "2000"); pg.click("[data-theme-opt=dark]")

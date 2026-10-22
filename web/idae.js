@@ -65,10 +65,25 @@ function pick(beta, alpha) {
 }
 
 /* Perfil de obstáculos: elevación en función del azimut (interpolación lineal, 0 fuera de lo medido) */
+/* Perfil como polilínea. Los puntos de cielo (sky) marcan huecos sin obstáculo: junto a ellos el perfil
+   cae en vertical a 0 en el último punto del obstáculo, en lugar de bajar en rampa hasta el hueco. */
+function expandProfile(points) {
+  var p = points.slice().sort(function (a, b) { return a.az - b.az; }), out = [];
+  for (var i = 0; i < p.length; i++) {
+    var q = p[i], prev = p[i - 1], next = p[i + 1];
+    if (q.sky) { out.push({ az: q.az, elev: 0, sky: true }); continue; }
+    if (prev && prev.sky) out.push({ az: q.az, elev: 0 });
+    out.push({ az: q.az, elev: q.elev });
+    if (next && next.sky) out.push({ az: q.az, elev: 0 });
+  }
+  return out;
+}
 function profileFn(points) {
-  var p = points.slice().sort(function (a, b) { return a.az - b.az; });
+  var p = expandProfile(points);
   return function (az) {
     if (!p.length || az < p[0].az || az > p[p.length - 1].az) return 0;
+    var hit = -1; p.forEach(function (v) { if (v.az === az && v.elev > hit) hit = v.elev; });
+    if (hit >= 0) return hit;
     for (var i = 1; i < p.length; i++) {
       if (az <= p[i].az) {
         var a = p[i - 1], b = p[i], w = b.az - a.az;
@@ -126,7 +141,7 @@ function ids() { var out = []; ["A", "B", "C", "D"].forEach(function (L) { for (
 /* Límites de la tabla I del pliego (pérdidas por sombras) */
 var LIMITS = [{ key: "general", name: "General", max: 10 }, { key: "superposicion", name: "Superposición", max: 15 }, { key: "integracion", name: "Integración arquitectónica", max: 20 }];
 
-var api = { TABLES: TABLES, pick: pick, compute: compute, profileFn: profileFn, outline: outline, center: center, ids: ids, LIMITS: LIMITS, sunPos: sunPos };
+var api = { TABLES: TABLES, pick: pick, compute: compute, profileFn: profileFn, expandProfile: expandProfile, outline: outline, center: center, ids: ids, LIMITS: LIMITS, sunPos: sunPos };
 if (typeof window !== "undefined") window.IDAE = api;
 if (typeof module !== "undefined") module.exports = api;
 })();

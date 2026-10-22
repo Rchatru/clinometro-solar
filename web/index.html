@@ -34,6 +34,7 @@
 
     <div class="hud-top">
       <canvas id="tape" class="tape" aria-hidden="true" hidden></canvas>
+      <button class="help-btn hud-help" type="button" data-open-help="measure" aria-label="Guía de medición">?</button>
       <div class="chips">
         <span class="chip" id="chipStab"><i></i><span>Esperando sensores</span></span>
         <span class="chip warn" id="chipRef" hidden><i></i><span>Sin norte magnético</span></span>
@@ -61,7 +62,12 @@
         </div>
       </div>
       <div class="shutter-row">
-        <button class="count" id="btnGoPoints" type="button" aria-label="Ver puntos guardados"><b id="vCount">0</b><span>puntos</span></button>
+        <div class="left-tools">
+          <button class="count" id="btnGoPoints" type="button" aria-label="Ver puntos guardados"><b id="vCount">0</b><span>puntos</span></button>
+          <button class="count" id="btnSky" type="button" disabled aria-label="Marcar cielo: hueco sin obstáculo en esta dirección">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18a4 4 0 0 1-.6-8A5.5 5.5 0 0 1 17 9a3.5 3.5 0 0 1 .5 7H7z"/></svg>
+            <span>cielo</span></button>
+        </div>
         <button class="shutter" id="btnSave" type="button" disabled aria-label="Guardar punto"><span></span><b id="countdown" hidden></b></button>
         <button class="count ghost" id="btnUndo" type="button" disabled aria-label="Deshacer último punto">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
@@ -80,6 +86,7 @@
           <li><span><b>Guarde un punto</b> cada 10-15° de azimut y en cada esquina, o <b>mantenga pulsado</b> el disparador y recorra el borde.</span></li>
         </ol>
         <button class="btn primary" id="btnStart" type="button">Activar cámara y sensores</button>
+        <button class="link-btn" type="button" data-open-help="measure">¿Cómo se mide? Ver la guía</button>
         <p class="onboard-msg" id="startMsg" role="status"></p>
       </div>
     </section>
@@ -87,9 +94,10 @@
 
   <!-- DIAGRAMA -->
   <section class="view view-page" id="view-chart" data-view="chart" hidden>
-    <header class="page-head">
-      <p class="eyebrow">Perfil del horizonte</p>
-      <h2>Diagrama <em>solar</em></h2>
+    <header class="page-head with-help">
+      <div><p class="eyebrow">Perfil del horizonte</p>
+      <h2>Diagrama <em>solar</em></h2></div>
+      <button class="help-btn" type="button" data-open-help="chart" aria-label="Cómo leer el diagrama">?</button>
     </header>
     <div class="seg" role="group" aria-label="Detalle del diagrama">
       <button type="button" id="modeSimple" aria-pressed="true">Simplificado</button>
@@ -136,7 +144,7 @@
       <div class="loss-head">
         <div>
           <p class="eyebrow">Método del IDAE · Anexo III</p>
-          <h3 id="lossTitle">Pérdidas por sombras</h3>
+          <h3 id="lossTitle">Pérdidas por sombras <button class="help-btn inline" type="button" data-open-help="chart" data-help-step="3" aria-label="Cómo se calculan las pérdidas">?</button></h3>
         </div>
         <div class="loss-big"><b id="lossVal">–</b><small>%</small></div>
       </div>
@@ -262,7 +270,7 @@
 
     <div class="group" id="corrGroup">
       <div class="group-head"><h3>Punto de estudio</h3>
-        <button class="help-btn" id="btnCorrHelp" type="button" aria-label="Cómo funciona la medida desde otro punto">?</button></div>
+        <button class="help-btn" id="btnCorrHelp" type="button" data-open-help="corr" aria-label="Cómo funciona la medida desde otro punto">?</button></div>
       <label class="field switch" for="inCorrOn"><span>Medir desde otro punto <small>por ejemplo, desde el suelo bajo la pérgola</small></span>
         <input id="inCorrOn" type="checkbox" role="switch"></label>
       <div class="corr-body" id="corrBody" hidden>
@@ -312,6 +320,21 @@
       </div>
     </div>
 
+    <div class="group" id="backupGroup">
+      <h3>Copia de seguridad</h3>
+      <p class="hint">Los proyectos se guardan solo en este móvil. Haga una copia para no perderlos si desinstala la app, o para pasar un proyecto a otra persona (por ejemplo, del alumnado al profesor).</p>
+      <label class="field" for="inBkScope"><span>Qué copiar</span>
+        <select id="inBkScope"><option value="all">Todos los proyectos</option><option value="current">Solo el proyecto actual</option></select></label>
+      <label class="field switch" for="inBkPhotos"><span>Incluir fotos <small id="bkPhotoInfo">el archivo ocupa más</small></span>
+        <input id="inBkPhotos" type="checkbox" role="switch" checked></label>
+      <div class="actions">
+        <button class="btn primary" id="btnBkExport" type="button">Exportar copia</button>
+        <button class="btn" id="btnBkImport" type="button">Importar copia</button>
+      </div>
+      <input id="inBkFile" type="file" hidden aria-label="Archivo de copia de seguridad">
+      <p class="hint" id="bkInfo"></p>
+    </div>
+
     <div class="group">
       <h3>Apariencia</h3>
       <div class="seg wide" role="group" aria-label="Tema">
@@ -357,9 +380,9 @@
 
 
   <div class="sheet-bg" id="helpBg" hidden></div>
-  <section class="sheet help" id="helpSheet" hidden aria-labelledby="helpTitle" role="dialog">
+  <section class="sheet help" data-help="corr" hidden aria-labelledby="helpTitle" role="dialog">
     <div class="sheet-grip"></div>
-    <header class="sheet-head"><h3 id="helpTitle">Medir desde otro punto</h3><button class="btn" id="helpClose" type="button">Cerrar</button></header>
+    <header class="sheet-head"><h3 id="helpTitle">Medir desde otro punto</h3><button class="btn help-close" type="button">Cerrar</button></header>
 
     <div class="help-step" data-step="0">
       <svg class="help-fig" viewBox="0 0 360 226" aria-hidden="true">
@@ -473,9 +496,281 @@
     </div>
 
     <footer class="help-nav">
-      <button class="btn" id="helpPrev" type="button">Anterior</button>
-      <div class="dots" id="helpDots"></div>
-      <button class="btn primary" id="helpNext" type="button">Siguiente</button>
+      <button class="btn help-prev" type="button">Anterior</button>
+      <div class="dots"></div>
+      <button class="btn primary help-next" type="button">Siguiente</button>
+    </footer>
+  </section>
+
+  <section class="sheet help" data-help="measure" hidden aria-labelledby="hmTitle" role="dialog">
+    <div class="sheet-grip"></div>
+    <header class="sheet-head"><h3 id="hmTitle">Cómo se mide</h3><button class="btn help-close" type="button">Cerrar</button></header>
+
+    <div class="help-step">
+      <svg class="help-fig" viewBox="0 0 360 226" aria-hidden="true">
+        <path class="axis" d="M20 186H340M20 186V24"/>
+        <text class="lab" x="40" y="204" text-anchor="middle">E</text><text class="lab" x="180" y="204" text-anchor="middle">S</text><text class="lab" x="320" y="204" text-anchor="middle">O</text>
+                <path class="arc-dec" d="M92 186Q180 60 268 186"/>
+        <path class="arc-eq" d="M60 186Q180 0 300 186"/>
+        <path class="arc-jun" d="M34 186Q180 -60 326 186"/>
+        <path class="silh draw" style="--d:.2s;--len:600" d="M20 186V150H70V120H110V138H150V186"/>
+        <circle class="pt-p pop" style="--d:1s" cx="250" cy="96" r="7"/>
+        <text class="lab-p fade" style="--d:1s" x="262" y="84">sol</text>
+        <text class="lab fade" style="--d:.9s" x="58" y="112">obstáculos</text>
+      </svg>
+      <h4>Qué hace la app</h4>
+      <p>Mide la silueta de los obstáculos que rodean el punto donde irán los módulos: para cada dirección (<b>azimut</b>), la altura de su borde superior (<b>elevación</b>). Después la compara con el recorrido del sol a lo largo del año y calcula cuándo hay sombra y cuánta energía se pierde.</p>
+    </div>
+
+    <div class="help-step" hidden>
+      <svg class="help-fig" viewBox="0 0 360 226" aria-hidden="true">
+        <rect class="phone-big" x="150" y="70" width="60" height="104" rx="10"/>
+        <path class="eight draw" style="--d:.2s;--len:520" d="M180 122C120 60 90 180 180 122C270 60 240 180 180 122"/>
+        <path class="metal" d="M40 60V190M40 80H90M40 120H90M40 160H90"/>
+        <path class="nope" d="M28 50L102 200"/>
+        <text class="lab" x="65" y="214" text-anchor="middle">lejos de metales</text>
+        <text class="lab-p fade" style="--d:1s" x="270" y="214" text-anchor="middle">calibrar en forma de 8</text>
+      </svg>
+      <h4>Antes de empezar</h4>
+      <ul>
+        <li>En <b>Ajustes</b>, pulse <b>Usar GPS</b>: la app toma la latitud y calcula la declinación magnética.</li>
+        <li>Colóquese en el <b>punto de estudio</b>, normalmente el borde inferior de los módulos. Si no puede, mida desde otro punto y use la corrección de Ajustes.</li>
+        <li>Aléjese de barandillas, estructuras metálicas y cuadros eléctricos, y calibre la brújula moviendo el móvil en forma de 8.</li>
+      </ul>
+    </div>
+
+    <div class="help-step" hidden>
+      <svg class="help-fig" viewBox="0 0 360 226" aria-hidden="true">
+        <rect class="bld" x="196" y="64" width="140" height="132"/>
+        <path class="bld-l" d="M196 94h140M196 124h140M196 154h140"/>
+        <path class="ground" d="M8 196H352"/>
+        <path class="sight-p draw" style="--d:.2s" d="M60 176L196 64"/>
+        <rect class="phone" x="50" y="164" width="16" height="26" rx="3" transform="rotate(-40 58 177)"/>
+        <g class="reticle-ill pop" style="--d:.9s"><circle cx="196" cy="64" r="11"/><path d="M196 44v10M196 74v10M176 64h10M206 64h10"/></g>
+        <text class="lab-p fade" style="--d:1.1s" x="214" y="52">borde superior</text>
+      </svg>
+      <h4>Cómo apuntar</h4>
+      <p>Centre la cruz en el <b>borde superior</b> del obstáculo. El móvil puede ir en vertical u horizontal; lo que importa es no girarlo mientras guarda. Apóyelo si puede y espere a que el disparador se ponga <b>verde</b> ("Lectura estable") antes de pulsarlo.</p>
+    </div>
+
+    <div class="help-step" hidden>
+      <svg class="help-fig" viewBox="0 0 360 226" aria-hidden="true">
+        <path class="silh" d="M20 196V150H60V120H118V140H150V196M226 196V130H262V100H300V196"/>
+        <path class="ground" d="M8 196H352"/>
+        <g class="dots-ill pop" style="--d:.3s"><circle cx="20" cy="150" r="4"/><circle cx="60" cy="150" r="4"/><circle cx="60" cy="120" r="4"/><circle cx="90" cy="120" r="4"/><circle cx="118" cy="120" r="4"/><circle cx="118" cy="140" r="4"/><circle cx="150" cy="140" r="4"/><circle cx="226" cy="130" r="4"/><circle cx="262" cy="130" r="4"/><circle cx="262" cy="100" r="4"/><circle cx="300" cy="100" r="4"/></g>
+        <g class="cloud-ill pop" style="--d:.9s"><path d="M176 186a8 8 0 0 1-1-16 11 11 0 0 1 21-2 7 7 0 0 1 1 14z"/></g>
+        <text class="lab-sky fade" style="--d:1.1s" x="188" y="160" text-anchor="middle">cielo</text>
+        <text class="lab" x="20" y="214">este</text><text class="lab" x="180" y="214" text-anchor="middle">sur</text><text class="lab" x="340" y="214" text-anchor="end">oeste</text>
+      </svg>
+      <h4>Qué puntos guardar</h4>
+      <p>Recorra el horizonte <b>de este a oeste pasando por el sur</b>. Guarde un punto cada 10–15° y siempre en las <b>esquinas</b> y cambios de altura. Donde haya un hueco sin obstáculos, apunte al hueco y pulse <b>Cielo</b>: así la app no une un obstáculo con el siguiente.</p>
+    </div>
+
+    <div class="help-step" hidden>
+      <svg class="help-fig" viewBox="0 0 360 226" aria-hidden="true">
+        <path class="silh" d="M20 196V120H180V150H340V196"/>
+        <path class="sweep-ill draw" style="--d:.2s;--len:400" d="M30 120H180V150H330"/>
+        <circle class="shutter-ill" cx="180" cy="62" r="24"/><circle class="shutter-in" cx="180" cy="62" r="17"/>
+        <text class="lab-p fade" style="--d:.2s" x="214" y="56">mantener pulsado</text>
+        <text class="lab fade" style="--d:.9s" x="214" y="72">y recorrer el borde</text>
+      </svg>
+      <h4>Barrido y otras formas de disparar</h4>
+      <ul>
+        <li><b>Barrido:</b> mantenga pulsado el disparador y recorra despacio el borde del obstáculo; al soltar, la app lo convierte en puntos.</li>
+        <li>En <b>Ajustes</b> puede activar el disparo con retardo, tocando la imagen o con el botón de volumen, para no mover el móvil al pulsar.</li>
+        <li><b>Deshacer</b> borra el último punto o el último barrido completo.</li>
+      </ul>
+    </div>
+
+    <div class="help-step" hidden>
+      <svg class="help-fig" viewBox="0 0 360 226" aria-hidden="true">
+        <g class="tabs-ill">
+          <rect x="30" y="60" width="90" height="110" rx="12"/><rect x="135" y="60" width="90" height="110" rx="12"/><rect x="240" y="60" width="90" height="110" rx="12"/>
+        </g>
+        <path class="arc-jun" d="M44 140Q75 70 106 140"/><path class="silh" d="M44 140V120H66V130H80V140"/>
+        <path class="list-ill" d="M152 92H208M152 112H208M152 132H200"/>
+        <path class="doc-ill" d="M262 84H308M262 100H308M262 116H296M262 132H308"/>
+        <text class="lab" x="75" y="190" text-anchor="middle">Diagrama</text><text class="lab" x="180" y="190" text-anchor="middle">Puntos</text><text class="lab" x="285" y="190" text-anchor="middle">Informe</text>
+      </svg>
+      <h4>Y después</h4>
+      <p>En <b>Diagrama</b> verá la silueta sobre las trayectorias del sol, las pérdidas según el IDAE, el calendario de sombras y la producción con PVGIS. En <b>Puntos</b> puede añadir notas y distancias, y generar el <b>informe PDF</b> o exportar los datos.</p>
+    </div>
+    <footer class="help-nav">
+      <button class="btn help-prev" type="button">Anterior</button>
+      <div class="dots"></div>
+      <button class="btn primary help-next" type="button">Siguiente</button>
+    </footer>
+  </section>
+
+  <section class="sheet help" data-help="chart" hidden aria-labelledby="hcTitle" role="dialog">
+    <div class="sheet-grip"></div>
+    <header class="sheet-head"><h3 id="hcTitle">Cómo leer el diagrama</h3><button class="btn help-close" type="button">Cerrar</button></header>
+
+    <div class="help-step">
+      <svg class="help-fig" viewBox="0 0 360 226" aria-hidden="true">
+        <path class="axis" d="M20 186H340M20 186V24"/>
+        <text class="lab" x="40" y="204" text-anchor="middle">E</text><text class="lab" x="180" y="204" text-anchor="middle">S</text><text class="lab" x="320" y="204" text-anchor="middle">O</text>
+                <path class="arc-dec" d="M92 186Q180 60 268 186"/>
+        <path class="arc-eq" d="M60 186Q180 0 300 186"/>
+        <path class="arc-jun" d="M34 186Q180 -60 326 186"/>
+        <text class="lab-jun fade" style="--d:.3s" x="30" y="40">junio</text>
+        <text class="lab-eq fade" style="--d:.6s" x="30" y="56">marzo y septiembre</text>
+        <text class="lab-dec fade" style="--d:.9s" x="30" y="72">diciembre</text>
+        <path class="arrow draw" style="--d:1.2s" d="M118 104Q146 88 172 86M164 80L172 86L164 92"/>
+      </svg>
+      <h4>Ejes y trayectorias</h4>
+      <p>En horizontal está el <b>azimut</b>: este a la izquierda, sur en el centro y oeste a la derecha. En vertical, la <b>elevación</b> sobre el horizonte. Cada curva es el recorrido del sol un día (el 21 de cada mes): en junio va alto y largo; en diciembre, bajo y corto. A lo largo del día el sol avanza de izquierda a derecha.</p>
+    </div>
+
+    <div class="help-step" hidden>
+      <svg class="help-fig" viewBox="0 0 360 226" aria-hidden="true">
+        <path class="axis" d="M20 186H340M20 186V24"/>
+        <text class="lab" x="40" y="204" text-anchor="middle">E</text><text class="lab" x="180" y="204" text-anchor="middle">S</text><text class="lab" x="320" y="204" text-anchor="middle">O</text>
+                <path class="arc-dec" d="M92 186Q180 60 268 186"/>
+        <path class="arc-eq" d="M60 186Q180 0 300 186"/>
+        <path class="arc-jun" d="M34 186Q180 -60 326 186"/>
+        <path class="silh-a draw" style="--d:.2s;--len:500" d="M20 186V126H84V110H128V132H160V186Z"/>
+        <path class="arc-hit draw" style="--d:.9s;--len:120" d="M92 186Q118.4 148.2 144.7 133"/>
+        <text class="lab-p fade" style="--d:1.2s" x="176" y="176">sombra en invierno</text>
+      </svg>
+      <h4>La silueta y las sombras</h4>
+      <p>La zona gris es la silueta medida. Donde una trayectoria pasa <b>por dentro</b> de la silueta, el sol queda tapado. En este ejemplo, el obstáculo tapa el sol de diciembre durante buena parte de la mañana y el de marzo solo al amanecer; el de junio pasa por encima.</p>
+    </div>
+
+    <div class="help-step" hidden>
+      <svg class="help-fig" viewBox="0 0 360 226" aria-hidden="true">
+        <path class="axis" d="M20 186H340M20 186V24"/>
+        <text class="lab" x="40" y="204" text-anchor="middle">E</text><text class="lab" x="180" y="204" text-anchor="middle">S</text><text class="lab" x="320" y="204" text-anchor="middle">O</text>
+                <path class="arc-dec" d="M92 186Q180 60 268 186"/>
+        <path class="arc-eq" d="M60 186Q180 0 300 186"/>
+        <path class="arc-jun" d="M34 186Q180 -60 326 186"/>
+        <path class="hour draw" style="--d:.2s" d="M122 186Q120 100 112 40"/><path class="hour draw" style="--d:.4s" d="M180 186V-10"/><path class="hour draw" style="--d:.6s" d="M238 186Q240 100 248 40"/>
+        <text class="lab fade" style="--d:.8s" x="112" y="32" text-anchor="middle">10 h</text><text class="lab fade" style="--d:.8s" x="196" y="20">12 h</text><text class="lab fade" style="--d:.8s" x="248" y="32" text-anchor="middle">14 h</text>
+      </svg>
+      <h4>Modo completo y horas</h4>
+      <p>El modo <b>Completo</b> añade las curvas de todos los meses y las <b>líneas horarias</b>, que cortan las trayectorias. Son horas solares: a las 12 h el sol está justo al sur. En Canarias, la hora oficial va unos 70 minutos por delante en invierno y 130 en verano.</p>
+    </div>
+
+    <div class="help-step" hidden>
+      <svg class="help-fig" viewBox="0 0 360 226" aria-hidden="true">
+        <path class="axis" d="M20 186H340"/>
+        <path class="cell" d="M161.1 136.7L162.6 136.2L164.2 135.8L165.7 135.4L167.3 135.1L168.9 134.7L170.4 134.5L172.0 134.2L173.6 134.0L175.2 133.9L176.8 133.8L178.4 133.7L180.0 133.7L180.0 133.7L180.0 130.8L180.0 127.8L180.0 124.9L180.0 122.0L180.0 119.0L180.0 116.1L180.0 113.2L180.0 110.2L180.0 110.2L178.1 110.3L176.1 110.4L174.2 110.5L172.3 110.7L170.3 110.9L168.4 111.2L166.5 111.5L164.6 111.9L162.7 112.3L160.9 112.8L159.0 113.3L157.2 113.9L157.2 113.9L157.7 116.7L158.2 119.6L158.7 122.4L159.2 125.3L159.7 128.1L160.2 131.0L160.6 133.9L161.1 136.7Z"/>
+        <path class="cell" d="M180.0 133.7L181.6 133.7L183.2 133.8L184.8 133.9L186.4 134.0L188.0 134.2L189.6 134.5L191.1 134.7L192.7 135.1L194.3 135.4L195.8 135.8L197.4 136.2L198.9 136.7L198.9 136.7L199.4 133.9L199.8 131.0L200.3 128.1L200.8 125.3L201.3 122.4L201.8 119.6L202.3 116.7L202.8 113.9L202.8 113.9L201.0 113.3L199.1 112.8L197.3 112.3L195.4 111.9L193.5 111.5L191.6 111.2L189.7 110.9L187.7 110.7L185.8 110.5L183.9 110.4L181.9 110.3L180.0 110.2L180.0 110.2L180.0 113.2L180.0 116.1L180.0 119.0L180.0 122.0L180.0 124.9L180.0 127.8L180.0 130.8L180.0 133.7Z"/>
+        <path class="cell" d="M143.4 145.4L144.8 144.5L146.2 143.6L147.6 142.7L149.1 141.9L150.5 141.1L152.0 140.4L153.5 139.7L155.0 139.0L156.5 138.4L158.0 137.8L159.5 137.2L161.1 136.7L161.1 136.7L160.6 133.9L160.2 131.0L159.7 128.1L159.2 125.3L158.7 122.4L158.2 119.6L157.7 116.7L157.2 113.9L157.2 113.9L155.3 114.5L153.5 115.2L151.7 115.9L150.0 116.6L148.2 117.4L146.5 118.3L144.8 119.2L143.1 120.1L141.4 121.0L139.7 122.0L138.1 123.1L136.5 124.1L136.5 124.1L137.4 126.8L138.3 129.4L139.2 132.0L140.1 134.7L140.9 137.4L141.8 140.0L142.6 142.7L143.4 145.4Z"/>
+        <path class="cell" d="M198.9 136.7L200.5 137.2L202.0 137.8L203.5 138.4L205.0 139.0L206.5 139.7L208.0 140.4L209.5 141.1L210.9 141.9L212.4 142.7L213.8 143.6L215.2 144.5L216.6 145.4L216.6 145.4L217.4 142.7L218.2 140.0L219.1 137.4L219.9 134.7L220.8 132.0L221.7 129.4L222.6 126.8L223.5 124.1L223.5 124.1L221.9 123.1L220.3 122.0L218.6 121.0L216.9 120.1L215.2 119.2L213.5 118.3L211.8 117.4L210.0 116.6L208.3 115.9L206.5 115.2L204.7 114.5L202.8 113.9L202.8 113.9L202.3 116.7L201.8 119.6L201.3 122.4L200.8 125.3L200.3 128.1L199.8 131.0L199.4 133.9L198.9 136.7Z"/>
+        <path class="cell" d="M127.6 158.7L128.9 157.4L130.1 156.2L131.4 155.0L132.7 153.8L134.0 152.7L135.3 151.5L136.6 150.4L137.9 149.4L139.3 148.3L140.6 147.3L142.0 146.3L143.4 145.4L143.4 145.4L142.6 142.7L141.8 140.0L140.9 137.4L140.1 134.7L139.2 132.0L138.3 129.4L137.4 126.8L136.5 124.1L136.5 124.1L134.9 125.2L133.3 126.4L131.8 127.5L130.3 128.7L128.8 130.0L127.3 131.2L125.8 132.5L124.4 133.9L123.0 135.2L121.6 136.6L120.2 138.0L118.8 139.4L118.8 139.4L120.0 141.8L121.1 144.2L122.3 146.6L123.4 149.0L124.5 151.4L125.5 153.8L126.6 156.3L127.6 158.7Z"/>
+        <path class="cell" d="M216.6 145.4L218.0 146.3L219.4 147.3L220.7 148.3L222.1 149.4L223.4 150.4L224.7 151.5L226.0 152.7L227.3 153.8L228.6 155.0L229.9 156.2L231.1 157.4L232.4 158.7L232.4 158.7L233.4 156.3L234.5 153.8L235.5 151.4L236.6 149.0L237.7 146.6L238.9 144.2L240.0 141.8L241.2 139.4L241.2 139.4L239.8 138.0L238.4 136.6L237.0 135.2L235.6 133.9L234.2 132.5L232.7 131.2L231.2 130.0L229.7 128.7L228.2 127.5L226.7 126.4L225.1 125.2L223.5 124.1L223.5 124.1L222.6 126.8L221.7 129.4L220.8 132.0L219.9 134.7L219.1 137.4L218.2 140.0L217.4 142.7L216.6 145.4Z"/>
+        <path class="cell" d="M113.8 175.5L114.9 174.0L116.0 172.5L117.1 171.0L118.2 169.6L119.4 168.1L120.5 166.7L121.7 165.3L122.8 164.0L124.0 162.6L125.2 161.3L126.4 160.0L127.6 158.7L127.6 158.7L126.6 156.3L125.5 153.8L124.5 151.4L123.4 149.0L122.3 146.6L121.1 144.2L120.0 141.8L118.8 139.4L118.8 139.4L117.5 140.8L116.2 142.3L114.9 143.8L113.6 145.3L112.3 146.9L111.1 148.4L109.8 150.0L108.6 151.6L107.4 153.2L106.2 154.8L105.0 156.4L103.9 158.1L103.9 158.1L105.2 160.2L106.4 162.4L107.7 164.6L108.9 166.8L110.2 168.9L111.4 171.1L112.6 173.3L113.8 175.5Z"/>
+        <path class="cell" d="M232.4 158.7L233.6 160.0L234.8 161.3L236.0 162.6L237.2 164.0L238.3 165.3L239.5 166.7L240.6 168.1L241.8 169.6L242.9 171.0L244.0 172.5L245.1 174.0L246.2 175.5L246.2 175.5L247.4 173.3L248.6 171.1L249.8 168.9L251.1 166.8L252.3 164.6L253.6 162.4L254.8 160.2L256.1 158.1L256.1 158.1L255.0 156.4L253.8 154.8L252.6 153.2L251.4 151.6L250.2 150.0L248.9 148.4L247.7 146.9L246.4 145.3L245.1 143.8L243.8 142.3L242.5 140.8L241.2 139.4L241.2 139.4L240.0 141.8L238.9 144.2L237.7 146.6L236.6 149.0L235.5 151.4L234.5 153.8L233.4 156.3L232.4 158.7Z"/>
+        <path class="cell" d="M101.6 186.0L102.6 186.0L103.6 186.0L104.5 186.0L105.5 186.0L106.5 186.0L107.6 184.9L108.6 183.3L109.6 181.7L110.7 180.1L111.7 178.6L112.8 177.0L113.8 175.5L113.8 175.5L112.6 173.3L111.4 171.1L110.2 168.9L108.9 166.8L107.7 164.6L106.4 162.4L105.2 160.2L103.9 158.1L103.9 158.1L102.7 159.8L101.6 161.5L100.5 163.2L99.4 164.9L98.3 166.6L97.2 168.3L96.1 170.1L95.0 171.8L93.9 173.6L92.9 175.4L91.8 177.2L90.8 179.0L90.8 179.0L92.1 181.0L93.5 182.9L94.8 184.9L96.2 186.0L97.5 186.0L98.9 186.0L100.2 186.0L101.6 186.0Z"/>
+        <path class="cell" d="M246.2 175.5L247.2 177.0L248.3 178.6L249.3 180.1L250.4 181.7L251.4 183.3L252.4 184.9L253.5 186.0L254.5 186.0L255.5 186.0L256.4 186.0L257.4 186.0L258.4 186.0L258.4 186.0L259.8 186.0L261.1 186.0L262.5 186.0L263.8 186.0L265.2 184.9L266.5 182.9L267.9 181.0L269.2 179.0L269.2 179.0L268.2 177.2L267.1 175.4L266.1 173.6L265.0 171.8L263.9 170.1L262.8 168.3L261.7 166.6L260.6 164.9L259.5 163.2L258.4 161.5L257.3 159.8L256.1 158.1L256.1 158.1L254.8 160.2L253.6 162.4L252.3 164.6L251.1 166.8L249.8 168.9L248.6 171.1L247.4 173.3L246.2 175.5Z"/>
+        <path class="cell" d="M90.4 186.0L91.3 186.0L92.2 186.0L93.1 186.0L94.0 186.0L95.0 186.0L95.9 186.0L96.8 186.0L97.8 186.0L98.7 186.0L99.7 186.0L100.6 186.0L101.6 186.0L101.6 186.0L100.2 186.0L98.9 186.0L97.5 186.0L96.2 186.0L94.8 184.9L93.5 182.9L92.1 181.0L90.8 179.0L90.8 179.0L89.8 180.8L88.7 182.6L87.7 184.4L86.7 186.0L85.7 186.0L84.7 186.0L83.7 186.0L82.7 186.0L81.7 186.0L80.7 186.0L79.7 186.0L78.7 186.0L78.7 186.0L80.1 186.0L81.6 186.0L83.0 186.0L84.5 186.0L85.9 186.0L87.4 186.0L88.9 186.0L90.4 186.0Z"/>
+        <path class="cell" d="M258.4 186.0L259.4 186.0L260.3 186.0L261.3 186.0L262.2 186.0L263.2 186.0L264.1 186.0L265.0 186.0L266.0 186.0L266.9 186.0L267.8 186.0L268.7 186.0L269.6 186.0L269.6 186.0L271.1 186.0L272.6 186.0L274.1 186.0L275.5 186.0L277.0 186.0L278.4 186.0L279.9 186.0L281.3 186.0L281.3 186.0L280.3 186.0L279.3 186.0L278.3 186.0L277.3 186.0L276.3 186.0L275.3 186.0L274.3 186.0L273.3 186.0L272.3 184.4L271.3 182.6L270.2 180.8L269.2 179.0L269.2 179.0L267.9 181.0L266.5 182.9L265.2 184.9L263.8 186.0L262.5 186.0L261.1 186.0L259.8 186.0L258.4 186.0Z"/>
+        <path class="cell" d="M157.2 113.9L159.0 113.3L160.9 112.8L162.7 112.3L164.6 111.9L166.5 111.5L168.4 111.2L170.3 110.9L172.3 110.7L174.2 110.5L176.1 110.4L178.1 110.3L180.0 110.2L180.0 110.2L180.0 107.3L180.0 104.4L180.0 101.5L180.0 98.5L180.0 95.6L180.0 92.7L180.0 89.7L180.0 86.8L180.0 86.8L177.6 86.8L175.2 86.9L172.8 87.1L170.4 87.3L168.0 87.6L165.6 87.9L163.3 88.4L161.0 88.8L158.7 89.4L156.4 89.9L154.1 90.6L151.9 91.3L151.9 91.3L152.7 94.1L153.4 96.9L154.1 99.7L154.8 102.6L155.4 105.4L156.0 108.2L156.6 111.1L157.2 113.9Z"/>
+        <path class="cell" d="M180.0 110.2L181.9 110.3L183.9 110.4L185.8 110.5L187.7 110.7L189.7 110.9L191.6 111.2L193.5 111.5L195.4 111.9L197.3 112.3L199.1 112.8L201.0 113.3L202.8 113.9L202.8 113.9L203.4 111.1L204.0 108.2L204.6 105.4L205.2 102.6L205.9 99.7L206.6 96.9L207.3 94.1L208.1 91.3L208.1 91.3L205.9 90.6L203.6 89.9L201.3 89.4L199.0 88.8L196.7 88.4L194.4 87.9L192.0 87.6L189.6 87.3L187.2 87.1L184.8 86.9L182.4 86.8L180.0 86.8L180.0 86.8L180.0 89.7L180.0 92.7L180.0 95.6L180.0 98.5L180.0 101.5L180.0 104.4L180.0 107.3L180.0 110.2Z"/>
+        <path class="cell" d="M136.5 124.1L138.1 123.1L139.7 122.0L141.4 121.0L143.1 120.1L144.8 119.2L146.5 118.3L148.2 117.4L150.0 116.6L151.7 115.9L153.5 115.2L155.3 114.5L157.2 113.9L157.2 113.9L156.6 111.1L156.0 108.2L155.4 105.4L154.8 102.6L154.1 99.7L153.4 96.9L152.7 94.1L151.9 91.3L151.9 91.3L149.7 92.0L147.6 92.8L145.4 93.7L143.4 94.6L141.3 95.6L139.3 96.6L137.3 97.6L135.3 98.7L133.4 99.8L131.5 101.0L129.7 102.2L127.9 103.5L127.9 103.5L129.1 106.0L130.3 108.6L131.4 111.1L132.5 113.7L133.5 116.3L134.5 118.9L135.5 121.5L136.5 124.1Z"/>
+        <path class="cell" d="M202.8 113.9L204.7 114.5L206.5 115.2L208.3 115.9L210.0 116.6L211.8 117.4L213.5 118.3L215.2 119.2L216.9 120.1L218.6 121.0L220.3 122.0L221.9 123.1L223.5 124.1L223.5 124.1L224.5 121.5L225.5 118.9L226.5 116.3L227.5 113.7L228.6 111.1L229.7 108.6L230.9 106.0L232.1 103.5L232.1 103.5L230.3 102.2L228.5 101.0L226.6 99.8L224.7 98.7L222.7 97.6L220.7 96.6L218.7 95.6L216.6 94.6L214.6 93.7L212.4 92.8L210.3 92.0L208.1 91.3L208.1 91.3L207.3 94.1L206.6 96.9L205.9 99.7L205.2 102.6L204.6 105.4L204.0 108.2L203.4 111.1L202.8 113.9Z"/>
+        <path class="cell" d="M118.8 139.4L120.2 138.0L121.6 136.6L123.0 135.2L124.4 133.9L125.8 132.5L127.3 131.2L128.8 130.0L130.3 128.7L131.8 127.5L133.3 126.4L134.9 125.2L136.5 124.1L136.5 124.1L135.5 121.5L134.5 118.9L133.5 116.3L132.5 113.7L131.4 111.1L130.3 108.6L129.1 106.0L127.9 103.5L127.9 103.5L126.1 104.8L124.4 106.1L122.7 107.4L121.0 108.8L119.3 110.2L117.7 111.7L116.2 113.1L114.6 114.6L113.1 116.1L111.6 117.7L110.1 119.3L108.7 120.8L108.7 120.8L110.1 123.1L111.4 125.4L112.7 127.7L114.0 130.0L115.2 132.3L116.5 134.7L117.7 137.0L118.8 139.4Z"/>
+        <path class="cell" d="M223.5 124.1L225.1 125.2L226.7 126.4L228.2 127.5L229.7 128.7L231.2 130.0L232.7 131.2L234.2 132.5L235.6 133.9L237.0 135.2L238.4 136.6L239.8 138.0L241.2 139.4L241.2 139.4L242.3 137.0L243.5 134.7L244.8 132.3L246.0 130.0L247.3 127.7L248.6 125.4L249.9 123.1L251.3 120.8L251.3 120.8L249.9 119.3L248.4 117.7L246.9 116.1L245.4 114.6L243.8 113.1L242.3 111.7L240.7 110.2L239.0 108.8L237.3 107.4L235.6 106.1L233.9 104.8L232.1 103.5L232.1 103.5L230.9 106.0L229.7 108.6L228.6 111.1L227.5 113.7L226.5 116.3L225.5 118.9L224.5 121.5L223.5 124.1Z"/>
+        <path class="cell" d="M103.9 158.1L105.0 156.4L106.2 154.8L107.4 153.2L108.6 151.6L109.8 150.0L111.1 148.4L112.3 146.9L113.6 145.3L114.9 143.8L116.2 142.3L117.5 140.8L118.8 139.4L118.8 139.4L117.7 137.0L116.5 134.7L115.2 132.3L114.0 130.0L112.7 127.7L111.4 125.4L110.1 123.1L108.7 120.8L108.7 120.8L107.3 122.4L105.9 124.1L104.5 125.7L103.2 127.4L101.9 129.1L100.6 130.8L99.3 132.5L98.0 134.2L96.8 135.9L95.5 137.7L94.3 139.5L93.1 141.2L93.1 141.2L94.5 143.3L95.9 145.4L97.3 147.5L98.6 149.6L100.0 151.7L101.3 153.8L102.6 155.9L103.9 158.1Z"/>
+        <path class="cell" d="M241.2 139.4L242.5 140.8L243.8 142.3L245.1 143.8L246.4 145.3L247.7 146.9L248.9 148.4L250.2 150.0L251.4 151.6L252.6 153.2L253.8 154.8L255.0 156.4L256.1 158.1L256.1 158.1L257.4 155.9L258.7 153.8L260.0 151.7L261.4 149.6L262.7 147.5L264.1 145.4L265.5 143.3L266.9 141.2L266.9 141.2L265.7 139.5L264.5 137.7L263.2 135.9L262.0 134.2L260.7 132.5L259.4 130.8L258.1 129.1L256.8 127.4L255.5 125.7L254.1 124.1L252.7 122.4L251.3 120.8L251.3 120.8L249.9 123.1L248.6 125.4L247.3 127.7L246.0 130.0L244.8 132.3L243.5 134.7L242.3 137.0L241.2 139.4Z"/>
+        <path class="cell" d="M90.8 179.0L91.8 177.2L92.9 175.4L93.9 173.6L95.0 171.8L96.1 170.1L97.2 168.3L98.3 166.6L99.4 164.9L100.5 163.2L101.6 161.5L102.7 159.8L103.9 158.1L103.9 158.1L102.6 155.9L101.3 153.8L100.0 151.7L98.6 149.6L97.3 147.5L95.9 145.4L94.5 143.3L93.1 141.2L93.1 141.2L92.0 143.0L90.8 144.8L89.7 146.6L88.5 148.5L87.4 150.3L86.3 152.1L85.2 154.0L84.1 155.8L83.0 157.7L81.9 159.5L80.9 161.4L79.8 163.3L79.8 163.3L81.2 165.2L82.6 167.2L84.0 169.1L85.4 171.1L86.7 173.0L88.1 175.0L89.4 177.0L90.8 179.0Z"/>
+        <path class="cell" d="M256.1 158.1L257.3 159.8L258.4 161.5L259.5 163.2L260.6 164.9L261.7 166.6L262.8 168.3L263.9 170.1L265.0 171.8L266.1 173.6L267.1 175.4L268.2 177.2L269.2 179.0L269.2 179.0L270.6 177.0L271.9 175.0L273.3 173.0L274.6 171.1L276.0 169.1L277.4 167.2L278.8 165.2L280.2 163.3L280.2 163.3L279.1 161.4L278.1 159.5L277.0 157.7L275.9 155.8L274.8 154.0L273.7 152.1L272.6 150.3L271.5 148.5L270.3 146.6L269.2 144.8L268.0 143.0L266.9 141.2L266.9 141.2L265.5 143.3L264.1 145.4L262.7 147.5L261.4 149.6L260.0 151.7L258.7 153.8L257.4 155.9L256.1 158.1Z"/>
+        <path class="cell" d="M78.7 186.0L79.7 186.0L80.7 186.0L81.7 186.0L82.7 186.0L83.7 186.0L84.7 186.0L85.7 186.0L86.7 186.0L87.7 184.4L88.7 182.6L89.8 180.8L90.8 179.0L90.8 179.0L89.4 177.0L88.1 175.0L86.7 173.0L85.4 171.1L84.0 169.1L82.6 167.2L81.2 165.2L79.8 163.3L79.8 163.3L78.8 165.1L77.7 167.0L76.7 168.9L75.6 170.8L74.6 172.7L73.6 174.6L72.6 176.5L71.6 178.4L70.5 180.3L69.5 182.2L68.5 184.1L67.5 186.0L67.5 186.0L68.9 186.0L70.3 186.0L71.7 186.0L73.1 186.0L74.5 186.0L75.9 186.0L77.3 186.0L78.7 186.0Z"/>
+        <path class="cell" d="M269.2 179.0L270.2 180.8L271.3 182.6L272.3 184.4L273.3 186.0L274.3 186.0L275.3 186.0L276.3 186.0L277.3 186.0L278.3 186.0L279.3 186.0L280.3 186.0L281.3 186.0L281.3 186.0L282.7 186.0L284.1 186.0L285.5 186.0L286.9 186.0L288.3 186.0L289.7 186.0L291.1 186.0L292.5 186.0L292.5 186.0L291.5 184.1L290.5 182.2L289.5 180.3L288.4 178.4L287.4 176.5L286.4 174.6L285.4 172.7L284.4 170.8L283.3 168.9L282.3 167.0L281.2 165.1L280.2 163.3L280.2 163.3L278.8 165.2L277.4 167.2L276.0 169.1L274.6 171.1L273.3 173.0L271.9 175.0L270.6 177.0L269.2 179.0Z"/>
+        <path class="cell" d="M66.8 186.0L67.8 186.0L68.8 186.0L69.8 186.0L70.8 186.0L71.8 186.0L72.8 186.0L73.8 186.0L74.8 186.0L75.8 186.0L76.8 186.0L77.7 186.0L78.7 186.0L78.7 186.0L77.3 186.0L75.9 186.0L74.5 186.0L73.1 186.0L71.7 186.0L70.3 186.0L68.9 186.0L67.5 186.0L67.5 186.0L66.5 186.0L65.5 186.0L64.5 186.0L63.4 186.0L62.4 186.0L61.4 186.0L60.4 186.0L59.4 186.0L58.3 186.0L57.3 186.0L56.2 186.0L55.2 186.0L55.2 186.0L56.6 186.0L58.0 186.0L59.4 186.0L60.9 186.0L62.3 186.0L63.8 186.0L65.3 186.0L66.8 186.0Z"/>
+        <path class="cell" d="M281.3 186.0L282.3 186.0L283.2 186.0L284.2 186.0L285.2 186.0L286.2 186.0L287.2 186.0L288.2 186.0L289.2 186.0L290.2 186.0L291.2 186.0L292.2 186.0L293.2 186.0L293.2 186.0L294.7 186.0L296.2 186.0L297.7 186.0L299.1 186.0L300.6 186.0L302.0 186.0L303.4 186.0L304.8 186.0L304.8 186.0L303.8 186.0L302.7 186.0L301.7 186.0L300.6 186.0L299.6 186.0L298.6 186.0L297.6 186.0L296.6 186.0L295.5 186.0L294.5 186.0L293.5 186.0L292.5 186.0L292.5 186.0L291.1 186.0L289.7 186.0L288.3 186.0L286.9 186.0L285.5 186.0L284.1 186.0L282.7 186.0L281.3 186.0Z"/>
+        <path class="cell" d="M151.9 91.3L154.1 90.6L156.4 89.9L158.7 89.4L161.0 88.8L163.3 88.4L165.6 87.9L168.0 87.6L170.4 87.3L172.8 87.1L175.2 86.9L177.6 86.8L180.0 86.8L180.0 86.8L180.0 83.9L180.0 80.9L180.0 78.0L180.0 75.1L180.0 72.1L180.0 69.2L180.0 66.3L180.0 63.3L180.0 63.3L176.8 63.4L173.6 63.5L170.5 63.7L167.3 64.0L164.2 64.4L161.2 64.9L158.1 65.4L155.1 66.0L152.2 66.7L149.4 67.4L146.6 68.3L143.8 69.2L143.8 69.2L145.1 71.9L146.3 74.6L147.4 77.4L148.4 80.1L149.4 82.9L150.3 85.7L151.1 88.5L151.9 91.3Z"/>
+        <path class="cell-hit pop" style="--d:.4s" d="M180.0 86.8L182.4 86.8L184.8 86.9L187.2 87.1L189.6 87.3L192.0 87.6L194.4 87.9L196.7 88.4L199.0 88.8L201.3 89.4L203.6 89.9L205.9 90.6L208.1 91.3L208.1 91.3L208.9 88.5L209.7 85.7L210.6 82.9L211.6 80.1L212.6 77.4L213.7 74.6L214.9 71.9L216.2 69.2L216.2 69.2L213.4 68.3L210.6 67.4L207.8 66.7L204.9 66.0L201.9 65.4L198.8 64.9L195.8 64.4L192.7 64.0L189.5 63.7L186.4 63.5L183.2 63.4L180.0 63.3L180.0 63.3L180.0 66.3L180.0 69.2L180.0 72.1L180.0 75.1L180.0 78.0L180.0 80.9L180.0 83.9L180.0 86.8Z"/>
+        <path class="cell" d="M127.9 103.5L129.7 102.2L131.5 101.0L133.4 99.8L135.3 98.7L137.3 97.6L139.3 96.6L141.3 95.6L143.4 94.6L145.4 93.7L147.6 92.8L149.7 92.0L151.9 91.3L151.9 91.3L151.1 88.5L150.3 85.7L149.4 82.9L148.4 80.1L147.4 77.4L146.3 74.6L145.1 71.9L143.8 69.2L143.8 69.2L141.1 70.1L138.5 71.1L136.0 72.2L133.5 73.3L131.1 74.5L128.8 75.7L126.5 77.0L124.3 78.3L122.2 79.7L120.1 81.0L118.1 82.5L116.1 83.9L116.1 83.9L117.8 86.3L119.5 88.7L121.0 91.1L122.5 93.5L123.9 96.0L125.3 98.5L126.6 101.0L127.9 103.5Z"/>
+        <path class="cell" d="M208.1 91.3L210.3 92.0L212.4 92.8L214.6 93.7L216.6 94.6L218.7 95.6L220.7 96.6L222.7 97.6L224.7 98.7L226.6 99.8L228.5 101.0L230.3 102.2L232.1 103.5L232.1 103.5L233.4 101.0L234.7 98.5L236.1 96.0L237.5 93.5L239.0 91.1L240.5 88.7L242.2 86.3L243.9 83.9L243.9 83.9L241.9 82.5L239.9 81.0L237.8 79.7L235.7 78.3L233.5 77.0L231.2 75.7L228.9 74.5L226.5 73.3L224.0 72.2L221.5 71.1L218.9 70.1L216.2 69.2L216.2 69.2L214.9 71.9L213.7 74.6L212.6 77.4L211.6 80.1L210.6 82.9L209.7 85.7L208.9 88.5L208.1 91.3Z"/>
+        <path class="cell" d="M108.7 120.8L110.1 119.3L111.6 117.7L113.1 116.1L114.6 114.6L116.2 113.1L117.7 111.7L119.3 110.2L121.0 108.8L122.7 107.4L124.4 106.1L126.1 104.8L127.9 103.5L127.9 103.5L126.6 101.0L125.3 98.5L123.9 96.0L122.5 93.5L121.0 91.1L119.5 88.7L117.8 86.3L116.1 83.9L116.1 83.9L114.2 85.4L112.3 87.0L110.5 88.5L108.8 90.1L107.1 91.7L105.4 93.3L103.8 95.0L102.2 96.7L100.7 98.4L99.2 100.1L97.7 101.8L96.3 103.6L96.3 103.6L98.0 105.6L99.6 107.7L101.3 109.8L102.8 112.0L104.3 114.2L105.8 116.4L107.3 118.6L108.7 120.8Z"/>
+        <path class="cell" d="M232.1 103.5L233.9 104.8L235.6 106.1L237.3 107.4L239.0 108.8L240.7 110.2L242.3 111.7L243.8 113.1L245.4 114.6L246.9 116.1L248.4 117.7L249.9 119.3L251.3 120.8L251.3 120.8L252.7 118.6L254.2 116.4L255.7 114.2L257.2 112.0L258.7 109.8L260.4 107.7L262.0 105.6L263.7 103.6L263.7 103.6L262.3 101.8L260.8 100.1L259.3 98.4L257.8 96.7L256.2 95.0L254.6 93.3L252.9 91.7L251.2 90.1L249.5 88.5L247.7 87.0L245.8 85.4L243.9 83.9L243.9 83.9L242.2 86.3L240.5 88.7L239.0 91.1L237.5 93.5L236.1 96.0L234.7 98.5L233.4 101.0L232.1 103.5Z"/>
+        <path class="cell" d="M93.1 141.2L94.3 139.5L95.5 137.7L96.8 135.9L98.0 134.2L99.3 132.5L100.6 130.8L101.9 129.1L103.2 127.4L104.5 125.7L105.9 124.1L107.3 122.4L108.7 120.8L108.7 120.8L107.3 118.6L105.8 116.4L104.3 114.2L102.8 112.0L101.3 109.8L99.6 107.7L98.0 105.6L96.3 103.6L96.3 103.6L94.9 105.3L93.5 107.1L92.1 108.9L90.8 110.7L89.5 112.5L88.2 114.3L87.0 116.1L85.8 118.0L84.6 119.8L83.4 121.7L82.2 123.5L81.1 125.4L81.1 125.4L82.7 127.3L84.2 129.2L85.8 131.2L87.3 133.2L88.8 135.1L90.3 137.2L91.7 139.2L93.1 141.2Z"/>
+        <path class="cell" d="M251.3 120.8L252.7 122.4L254.1 124.1L255.5 125.7L256.8 127.4L258.1 129.1L259.4 130.8L260.7 132.5L262.0 134.2L263.2 135.9L264.5 137.7L265.7 139.5L266.9 141.2L266.9 141.2L268.3 139.2L269.7 137.2L271.2 135.1L272.7 133.2L274.2 131.2L275.8 129.2L277.3 127.3L278.9 125.4L278.9 125.4L277.8 123.5L276.6 121.7L275.4 119.8L274.2 118.0L273.0 116.1L271.8 114.3L270.5 112.5L269.2 110.7L267.9 108.9L266.5 107.1L265.1 105.3L263.7 103.6L263.7 103.6L262.0 105.6L260.4 107.7L258.7 109.8L257.2 112.0L255.7 114.2L254.2 116.4L252.7 118.6L251.3 120.8Z"/>
+        <path class="cell" d="M79.8 163.3L80.9 161.4L81.9 159.5L83.0 157.7L84.1 155.8L85.2 154.0L86.3 152.1L87.4 150.3L88.5 148.5L89.7 146.6L90.8 144.8L92.0 143.0L93.1 141.2L93.1 141.2L91.7 139.2L90.3 137.2L88.8 135.1L87.3 133.2L85.8 131.2L84.2 129.2L82.7 127.3L81.1 125.4L81.1 125.4L79.9 127.3L78.8 129.1L77.7 131.0L76.6 132.9L75.5 134.8L74.5 136.7L73.4 138.6L72.3 140.5L71.3 142.4L70.3 144.3L69.2 146.2L68.2 148.1L68.2 148.1L69.7 150.0L71.2 151.8L72.7 153.7L74.1 155.6L75.6 157.5L77.0 159.4L78.4 161.3L79.8 163.3Z"/>
+        <path class="cell" d="M266.9 141.2L268.0 143.0L269.2 144.8L270.3 146.6L271.5 148.5L272.6 150.3L273.7 152.1L274.8 154.0L275.9 155.8L277.0 157.7L278.1 159.5L279.1 161.4L280.2 163.3L280.2 163.3L281.6 161.3L283.0 159.4L284.4 157.5L285.9 155.6L287.3 153.7L288.8 151.8L290.3 150.0L291.8 148.1L291.8 148.1L290.8 146.2L289.7 144.3L288.7 142.4L287.7 140.5L286.6 138.6L285.5 136.7L284.5 134.8L283.4 132.9L282.3 131.0L281.2 129.1L280.1 127.3L278.9 125.4L278.9 125.4L277.3 127.3L275.8 129.2L274.2 131.2L272.7 133.2L271.2 135.1L269.7 137.2L268.3 139.2L266.9 141.2Z"/>
+        <path class="cell" d="M67.5 186.0L68.5 184.1L69.5 182.2L70.5 180.3L71.6 178.4L72.6 176.5L73.6 174.6L74.6 172.7L75.6 170.8L76.7 168.9L77.7 167.0L78.8 165.1L79.8 163.3L79.8 163.3L78.4 161.3L77.0 159.4L75.6 157.5L74.1 155.6L72.7 153.7L71.2 151.8L69.7 150.0L68.2 148.1L68.2 148.1L67.2 150.0L66.2 151.9L65.2 153.8L64.2 155.7L63.2 157.6L62.2 159.5L61.2 161.4L60.2 163.3L59.2 165.2L58.2 167.1L57.3 169.0L56.3 170.9L56.3 170.9L57.7 172.7L59.1 174.6L60.5 176.5L61.9 178.4L63.3 180.3L64.7 182.2L66.1 184.1L67.5 186.0Z"/>
+        <path class="cell" d="M280.2 163.3L281.2 165.1L282.3 167.0L283.3 168.9L284.4 170.8L285.4 172.7L286.4 174.6L287.4 176.5L288.4 178.4L289.5 180.3L290.5 182.2L291.5 184.1L292.5 186.0L292.5 186.0L293.9 184.1L295.3 182.2L296.7 180.3L298.1 178.4L299.5 176.5L300.9 174.6L302.3 172.7L303.7 170.9L303.7 170.9L302.7 169.0L301.8 167.1L300.8 165.2L299.8 163.3L298.8 161.4L297.8 159.5L296.8 157.6L295.8 155.7L294.8 153.8L293.8 151.9L292.8 150.0L291.8 148.1L291.8 148.1L290.3 150.0L288.8 151.8L287.3 153.7L285.9 155.6L284.4 157.5L283.0 159.4L281.6 161.3L280.2 163.3Z"/>
+        <path class="cell" d="M55.2 186.0L56.2 186.0L57.3 186.0L58.3 186.0L59.4 186.0L60.4 186.0L61.4 186.0L62.4 186.0L63.4 186.0L64.5 186.0L65.5 186.0L66.5 186.0L67.5 186.0L67.5 186.0L66.1 184.1L64.7 182.2L63.3 180.3L61.9 178.4L60.5 176.5L59.1 174.6L57.7 172.7L56.3 170.9L56.3 170.9L55.3 172.7L54.3 174.6L53.3 176.5L52.3 178.3L51.3 180.2L50.3 182.1L49.3 183.9L48.3 185.7L47.3 186.0L46.3 186.0L45.2 186.0L44.2 186.0L44.2 186.0L45.6 186.0L46.9 186.0L48.3 186.0L49.6 186.0L51.0 186.0L52.4 186.0L53.8 186.0L55.2 186.0Z"/>
+        <path class="cell" d="M292.5 186.0L293.5 186.0L294.5 186.0L295.5 186.0L296.6 186.0L297.6 186.0L298.6 186.0L299.6 186.0L300.6 186.0L301.7 186.0L302.7 186.0L303.8 186.0L304.8 186.0L304.8 186.0L306.2 186.0L307.6 186.0L309.0 186.0L310.4 186.0L311.7 186.0L313.1 186.0L314.4 186.0L315.8 186.0L315.8 186.0L314.8 186.0L313.7 186.0L312.7 186.0L311.7 185.7L310.7 183.9L309.7 182.1L308.7 180.2L307.7 178.3L306.7 176.5L305.7 174.6L304.7 172.7L303.7 170.9L303.7 170.9L302.3 172.7L300.9 174.6L299.5 176.5L298.1 178.4L296.7 180.3L295.3 182.2L293.9 184.1L292.5 186.0Z"/>
+        <path class="cell" d="M143.8 69.2L146.6 68.3L149.4 67.4L152.2 66.7L155.1 66.0L158.1 65.4L161.2 64.9L164.2 64.4L167.3 64.0L170.5 63.7L173.6 63.5L176.8 63.4L180.0 63.3L180.0 63.3L180.0 60.4L180.0 57.5L180.0 54.6L180.0 51.6L180.0 48.7L180.0 45.8L180.0 42.8L180.0 39.9L180.0 39.9L175.1 40.0L170.2 40.2L165.4 40.5L160.7 40.9L156.1 41.5L151.6 42.2L147.3 43.0L143.2 43.8L139.3 44.8L135.5 45.9L131.9 47.0L128.5 48.3L128.5 48.3L131.1 50.7L133.5 53.3L135.6 55.8L137.6 58.5L139.3 61.1L141.0 63.8L142.4 66.4L143.8 69.2Z"/>
+        <path class="cell" d="M180.0 63.3L183.2 63.4L186.4 63.5L189.5 63.7L192.7 64.0L195.8 64.4L198.8 64.9L201.9 65.4L204.9 66.0L207.8 66.7L210.6 67.4L213.4 68.3L216.2 69.2L216.2 69.2L217.6 66.4L219.0 63.8L220.7 61.1L222.4 58.5L224.4 55.8L226.5 53.3L228.9 50.7L231.5 48.3L231.5 48.3L228.1 47.0L224.5 45.9L220.7 44.8L216.8 43.8L212.7 43.0L208.4 42.2L203.9 41.5L199.3 40.9L194.6 40.5L189.8 40.2L184.9 40.0L180.0 39.9L180.0 39.9L180.0 42.8L180.0 45.8L180.0 48.7L180.0 51.6L180.0 54.6L180.0 57.5L180.0 60.4L180.0 63.3Z"/>
+        <path class="cell" d="M116.1 83.9L118.1 82.5L120.1 81.0L122.2 79.7L124.3 78.3L126.5 77.0L128.8 75.7L131.1 74.5L133.5 73.3L136.0 72.2L138.5 71.1L141.1 70.1L143.8 69.2L143.8 69.2L142.4 66.4L141.0 63.8L139.3 61.1L137.6 58.5L135.6 55.8L133.5 53.3L131.1 50.7L128.5 48.3L128.5 48.3L125.3 49.5L122.2 50.9L119.3 52.3L116.5 53.8L113.8 55.2L111.3 56.8L108.9 58.4L106.6 60.0L104.5 61.6L102.4 63.3L100.4 65.0L98.5 66.7L98.5 66.7L101.1 68.7L103.7 70.7L106.0 72.8L108.3 74.9L110.4 77.1L112.4 79.3L114.3 81.6L116.1 83.9Z"/>
+        <path class="cell" d="M216.2 69.2L218.9 70.1L221.5 71.1L224.0 72.2L226.5 73.3L228.9 74.5L231.2 75.7L233.5 77.0L235.7 78.3L237.8 79.7L239.9 81.0L241.9 82.5L243.9 83.9L243.9 83.9L245.7 81.6L247.6 79.3L249.6 77.1L251.7 74.9L254.0 72.8L256.3 70.7L258.9 68.7L261.5 66.7L261.5 66.7L259.6 65.0L257.6 63.3L255.5 61.6L253.4 60.0L251.1 58.4L248.7 56.8L246.2 55.2L243.5 53.8L240.7 52.3L237.8 50.9L234.7 49.5L231.5 48.3L231.5 48.3L228.9 50.7L226.5 53.3L224.4 55.8L222.4 58.5L220.7 61.1L219.0 63.8L217.6 66.4L216.2 69.2Z"/>
+        <path class="cell" d="M96.3 103.6L97.7 101.8L99.2 100.1L100.7 98.4L102.2 96.7L103.8 95.0L105.4 93.3L107.1 91.7L108.8 90.1L110.5 88.5L112.3 87.0L114.2 85.4L116.1 83.9L116.1 83.9L114.3 81.6L112.4 79.3L110.4 77.1L108.3 74.9L106.0 72.8L103.7 70.7L101.1 68.7L98.5 66.7L98.5 66.7L96.7 68.4L94.9 70.2L93.2 72.0L91.6 73.8L90.0 75.6L88.5 77.4L87.0 79.2L85.6 81.0L84.2 82.9L82.9 84.7L81.6 86.6L80.3 88.5L80.3 88.5L82.6 90.2L84.7 92.0L86.8 93.8L88.8 95.7L90.8 97.6L92.7 99.5L94.5 101.5L96.3 103.6Z"/>
+        <path class="cell" d="M243.9 83.9L245.8 85.4L247.7 87.0L249.5 88.5L251.2 90.1L252.9 91.7L254.6 93.3L256.2 95.0L257.8 96.7L259.3 98.4L260.8 100.1L262.3 101.8L263.7 103.6L263.7 103.6L265.5 101.5L267.3 99.5L269.2 97.6L271.2 95.7L273.2 93.8L275.3 92.0L277.4 90.2L279.7 88.5L279.7 88.5L278.4 86.6L277.1 84.7L275.8 82.9L274.4 81.0L273.0 79.2L271.5 77.4L270.0 75.6L268.4 73.8L266.8 72.0L265.1 70.2L263.3 68.4L261.5 66.7L261.5 66.7L258.9 68.7L256.3 70.7L254.0 72.8L251.7 74.9L249.6 77.1L247.6 79.3L245.7 81.6L243.9 83.9Z"/>
+        <path class="cell" d="M81.1 125.4L82.2 123.5L83.4 121.7L84.6 119.8L85.8 118.0L87.0 116.1L88.2 114.3L89.5 112.5L90.8 110.7L92.1 108.9L93.5 107.1L94.9 105.3L96.3 103.6L96.3 103.6L94.5 101.5L92.7 99.5L90.8 97.6L88.8 95.7L86.8 93.8L84.7 92.0L82.6 90.2L80.3 88.5L80.3 88.5L79.1 90.4L77.9 92.2L76.7 94.1L75.5 96.0L74.4 97.9L73.3 99.8L72.2 101.7L71.1 103.6L70.1 105.5L69.0 107.4L68.0 109.3L67.0 111.2L67.0 111.2L68.9 112.9L70.7 114.6L72.5 116.3L74.3 118.1L76.1 119.8L77.8 121.7L79.4 123.5L81.1 125.4Z"/>
+        <path class="cell" d="M263.7 103.6L265.1 105.3L266.5 107.1L267.9 108.9L269.2 110.7L270.5 112.5L271.8 114.3L273.0 116.1L274.2 118.0L275.4 119.8L276.6 121.7L277.8 123.5L278.9 125.4L278.9 125.4L280.6 123.5L282.2 121.7L283.9 119.8L285.7 118.1L287.5 116.3L289.3 114.6L291.1 112.9L293.0 111.2L293.0 111.2L292.0 109.3L291.0 107.4L289.9 105.5L288.9 103.6L287.8 101.7L286.7 99.8L285.6 97.9L284.5 96.0L283.3 94.1L282.1 92.2L280.9 90.4L279.7 88.5L279.7 88.5L277.4 90.2L275.3 92.0L273.2 93.8L271.2 95.7L269.2 97.6L267.3 99.5L265.5 101.5L263.7 103.6Z"/>
+        <path class="cell" d="M68.2 148.1L69.2 146.2L70.3 144.3L71.3 142.4L72.3 140.5L73.4 138.6L74.5 136.7L75.5 134.8L76.6 132.9L77.7 131.0L78.8 129.1L79.9 127.3L81.1 125.4L81.1 125.4L79.4 123.5L77.8 121.7L76.1 119.8L74.3 118.1L72.5 116.3L70.7 114.6L68.9 112.9L67.0 111.2L67.0 111.2L66.0 113.1L65.0 115.0L64.0 116.9L63.0 118.8L62.1 120.7L61.1 122.6L60.2 124.5L59.3 126.4L58.3 128.3L57.4 130.2L56.5 132.1L55.6 134.0L55.6 134.0L57.2 135.6L58.8 137.4L60.5 139.1L62.1 140.9L63.6 142.7L65.2 144.5L66.7 146.3L68.2 148.1Z"/>
+        <path class="cell" d="M278.9 125.4L280.1 127.3L281.2 129.1L282.3 131.0L283.4 132.9L284.5 134.8L285.5 136.7L286.6 138.6L287.7 140.5L288.7 142.4L289.7 144.3L290.8 146.2L291.8 148.1L291.8 148.1L293.3 146.3L294.8 144.5L296.4 142.7L297.9 140.9L299.5 139.1L301.2 137.4L302.8 135.6L304.4 134.0L304.4 134.0L303.5 132.1L302.6 130.2L301.7 128.3L300.7 126.4L299.8 124.5L298.9 122.6L297.9 120.7L297.0 118.8L296.0 116.9L295.0 115.0L294.0 113.1L293.0 111.2L293.0 111.2L291.1 112.9L289.3 114.6L287.5 116.3L285.7 118.1L283.9 119.8L282.2 121.7L280.6 123.5L278.9 125.4Z"/>
+        <path class="cell" d="M56.3 170.9L57.3 169.0L58.2 167.1L59.2 165.2L60.2 163.3L61.2 161.4L62.2 159.5L63.2 157.6L64.2 155.7L65.2 153.8L66.2 151.9L67.2 150.0L68.2 148.1L68.2 148.1L66.7 146.3L65.2 144.5L63.6 142.7L62.1 140.9L60.5 139.1L58.8 137.4L57.2 135.6L55.6 134.0L55.6 134.0L54.6 135.8L53.7 137.7L52.8 139.6L51.9 141.4L51.0 143.3L50.1 145.1L49.2 147.0L48.3 148.8L47.4 150.7L46.5 152.5L45.6 154.3L44.6 156.1L44.6 156.1L46.1 157.9L47.6 159.7L49.1 161.6L50.5 163.4L52.0 165.3L53.4 167.1L54.9 169.0L56.3 170.9Z"/>
+        <path class="cell" d="M291.8 148.1L292.8 150.0L293.8 151.9L294.8 153.8L295.8 155.7L296.8 157.6L297.8 159.5L298.8 161.4L299.8 163.3L300.8 165.2L301.8 167.1L302.7 169.0L303.7 170.9L303.7 170.9L305.1 169.0L306.6 167.1L308.0 165.3L309.5 163.4L310.9 161.6L312.4 159.7L313.9 157.9L315.4 156.1L315.4 156.1L314.4 154.3L313.5 152.5L312.6 150.7L311.7 148.8L310.8 147.0L309.9 145.1L309.0 143.3L308.1 141.4L307.2 139.6L306.3 137.7L305.4 135.8L304.4 134.0L304.4 134.0L302.8 135.6L301.2 137.4L299.5 139.1L297.9 140.9L296.4 142.7L294.8 144.5L293.3 146.3L291.8 148.1Z"/>
+        <path class="cell" d="M44.2 186.0L45.2 186.0L46.3 186.0L47.3 186.0L48.3 185.7L49.3 183.9L50.3 182.1L51.3 180.2L52.3 178.3L53.3 176.5L54.3 174.6L55.3 172.7L56.3 170.9L56.3 170.9L54.9 169.0L53.4 167.1L52.0 165.3L50.5 163.4L49.1 161.6L47.6 159.7L46.1 157.9L44.6 156.1L44.6 156.1L43.7 157.9L42.8 159.7L41.9 161.5L41.0 163.3L40.0 165.0L39.1 166.8L38.2 168.6L37.2 170.3L36.3 172.0L35.3 173.7L34.4 175.5L33.4 177.2L33.4 177.2L34.8 179.1L36.1 181.1L37.5 183.1L38.8 185.1L40.2 186.0L41.5 186.0L42.9 186.0L44.2 186.0Z"/>
+        <path class="cell" d="M303.7 170.9L304.7 172.7L305.7 174.6L306.7 176.5L307.7 178.3L308.7 180.2L309.7 182.1L310.7 183.9L311.7 185.7L312.7 186.0L313.7 186.0L314.8 186.0L315.8 186.0L315.8 186.0L317.1 186.0L318.5 186.0L319.8 186.0L321.2 185.1L322.5 183.1L323.9 181.1L325.2 179.1L326.6 177.2L326.6 177.2L325.6 175.5L324.7 173.7L323.7 172.0L322.8 170.3L321.8 168.6L320.9 166.8L320.0 165.0L319.0 163.3L318.1 161.5L317.2 159.7L316.3 157.9L315.4 156.1L315.4 156.1L313.9 157.9L312.4 159.7L310.9 161.6L309.5 163.4L308.0 165.3L306.6 167.1L305.1 169.0L303.7 170.9Z"/>
+        <text class="lab-cell" x="169.5" y="125.8" text-anchor="middle">A1</text>
+        <text class="lab-cell" x="190.5" y="125.8" text-anchor="middle">A2</text>
+        <text class="lab-cell" x="149.4" y="132.3" text-anchor="middle">A3</text>
+        <text class="lab-cell" x="210.6" y="132.3" text-anchor="middle">A4</text>
+        <text class="lab-cell" x="131.4" y="144.3" text-anchor="middle">A5</text>
+        <text class="lab-cell" x="228.6" y="144.3" text-anchor="middle">A6</text>
+        <text class="lab-cell" x="167.2" y="102.5" text-anchor="middle">B1</text>
+        <text class="lab-cell" x="192.8" y="102.5" text-anchor="middle">B2</text>
+        <text class="lab-cell" x="143.2" y="110.4" text-anchor="middle">B3</text>
+        <text class="lab-cell" x="216.8" y="110.4" text-anchor="middle">B4</text>
+        <text class="lab-cell" x="122.8" y="124.3" text-anchor="middle">B5</text>
+        <text class="lab-cell" x="237.2" y="124.3" text-anchor="middle">B6</text>
+        <text class="lab-cell" x="163.7" y="79.4" text-anchor="middle">C1</text>
+        <text class="lab-cell" x="196.3" y="79.4" text-anchor="middle">C2</text>
+        <text class="lab-cell" x="134.6" y="89.0" text-anchor="middle">C3</text>
+        <text class="lab-cell" x="225.4" y="89.0" text-anchor="middle">C4</text>
+        <text class="lab-cell" x="112.0" y="105.3" text-anchor="middle">C5</text>
+        <text class="lab-cell" x="248.0" y="105.3" text-anchor="middle">C6</text>
+        <text class="lab-cell" x="157.5" y="56.4" text-anchor="middle">D1</text>
+        <text class="lab-cell" x="202.5" y="56.4" text-anchor="middle">D2</text>
+        <text class="lab-cell" x="121.3" y="68.9" text-anchor="middle">D3</text>
+        <text class="lab-cell" x="238.7" y="68.9" text-anchor="middle">D4</text>
+        <text class="lab-cell" x="97.7" y="88.0" text-anchor="middle">D5</text>
+        <text class="lab-cell" x="262.3" y="88.0" text-anchor="middle">D6</text>
+        <text class="lab" x="40" y="204">mañana: 1, 3, 5…</text><text class="lab" x="320" y="204" text-anchor="end">tarde: 2, 4, 6…</text>
+      </svg>
+      <h4>Las porciones del IDAE</h4>
+      <p>El pliego del IDAE divide el recorrido anual del sol en <b>porciones</b>: cada columna es una hora (impares por la mañana, pares por la tarde) y cada fila una época del año, de <b>A</b> (invierno) a <b>D</b> (verano). Cada porción tiene un valor en la tabla: el porcentaje de la radiación del año que se pierde si un obstáculo la tapa entera.</p>
+    </div>
+
+    <div class="help-step" hidden>
+      <svg class="help-fig" viewBox="0 0 360 226" aria-hidden="true">
+        <path class="cell-out" d="M40 70H120V150H40Z"/><path class="cell-fill draw" style="--d:.3s;--len:300" d="M40 110H120V150H40Z"/>
+        <text class="lab" x="80" y="170" text-anchor="middle">tapada a medias</text>
+        <text class="eq fade" style="--d:.8s" x="140" y="104">0,50 × 1,84 % = 0,92 %</text>
+        <text class="lab fade" style="--d:1.1s" x="140" y="128">factor × valor de la tabla</text>
+        <text class="eq fade" style="--d:1.4s" x="140" y="160">Σ todas las porciones</text>
+        <text class="lab fade" style="--d:1.6s" x="140" y="184">= pérdidas por sombras</text>
+      </svg>
+      <h4>El cálculo de las pérdidas</h4>
+      <p>Para cada porción tapada, la app mide qué fracción oculta el obstáculo y la redondea como pide el pliego (0,25, 0,50, 0,75 o 1). Multiplica ese factor por el valor de la tabla y suma todas. La tabla depende de la inclinación y la orientación de los módulos. El resultado se compara con el límite de la tabla I: 10 % en general, 15 % con superposición y 20 % con integración arquitectónica.</p>
+    </div>
+
+    <div class="help-step" hidden>
+      <svg class="help-fig" viewBox="0 0 360 226" aria-hidden="true">
+        <g class="calmini"><rect x="30" y="50" width="130" height="120" rx="8"/></g>
+        <g class="calcells"><rect x="44" y="64" width="20" height="14"/><rect x="66" y="64" width="20" height="14"/><rect x="44" y="80" width="20" height="14"/><rect x="44" y="96" width="20" height="14"/></g>
+        <g class="calsun"><rect x="88" y="64" width="20" height="14"/><rect x="110" y="64" width="36" height="14"/><rect x="66" y="80" width="80" height="14"/><rect x="66" y="96" width="80" height="14"/><rect x="44" y="112" width="102" height="14"/><rect x="44" y="128" width="102" height="14"/><rect x="44" y="144" width="102" height="14"/></g>
+        <g class="bars"><rect x="206" y="110" width="16" height="60"/><rect x="230" y="84" width="16" height="86"/><rect x="254" y="64" width="16" height="106"/><rect x="278" y="72" width="16" height="98"/><rect x="302" y="100" width="16" height="70"/></g>
+        <g class="bars-s"><rect x="209" y="126" width="10" height="44"/><rect x="233" y="96" width="10" height="74"/><rect x="257" y="68" width="10" height="102"/><rect x="281" y="76" width="10" height="94"/><rect x="305" y="114" width="10" height="56"/></g>
+        <text class="lab" x="95" y="190" text-anchor="middle">calendario: horas</text><text class="lab" x="262" y="190" text-anchor="middle">PVGIS: energía</text>
+      </svg>
+      <h4>Calendario y PVGIS</h4>
+      <ul>
+        <li>El <b>calendario</b> muestra en qué meses y horas (hora oficial) el sol queda tapado. Sirve para explicar la sombra, pero cuenta tiempo, no energía.</li>
+        <li><b>PVGIS</b> calcula la producción en kWh con y sin los obstáculos, con datos de radiación reales del lugar.</li>
+        <li>Para justificar el pliego use las <b>pérdidas del IDAE</b>; para estimar la energía, <b>PVGIS</b>.</li>
+      </ul>
+    </div>
+    <footer class="help-nav">
+      <button class="btn help-prev" type="button">Anterior</button>
+      <div class="dots"></div>
+      <button class="btn primary help-next" type="button">Siguiente</button>
     </footer>
   </section>
   <div class="lightbox" id="lightbox" hidden>

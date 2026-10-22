@@ -402,3 +402,48 @@ select{font-family:var(--f-ui)}
 @keyframes draw{to{stroke-dashoffset:0}}
 @keyframes fadein{to{opacity:1}}
 @keyframes pop{to{transform:scale(1)}}
+.left-tools{justify-self:start;display:flex;gap:8px}
+.left-tools .count{min-width:58px}
+#btnSky svg{width:20px;height:20px;margin:1px 0;color:#7fb0f5}
+.p-vals .sky{color:var(--winter)}
+
+/* ---------- Guías de ayuda ---------- */
+.link-btn{display:block;margin:12px auto 0;color:var(--hud-accent);font-weight:600;font-size:14.5px;text-decoration:underline;text-underline-offset:3px}
+.hud-help{position:absolute;right:16px;top:calc(var(--sat) + 66px);background:var(--glass);border-color:var(--glass-line);color:var(--hud);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.page-head.with-help{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.help-btn.inline{display:inline-grid;width:24px;height:24px;font-size:13px;vertical-align:4px;margin-left:6px}
+.help-fig .axis{stroke:var(--ink-2);stroke-width:1.5}
+.help-fig .arc-dec{stroke:var(--winter);stroke-width:2.5}
+.help-fig .arc-eq{stroke:#9b7fd0;stroke-width:2.5}
+.help-fig .arc-jun{stroke:var(--sun);stroke-width:2.5}
+.help-fig .arc-hit{stroke:var(--ink);stroke-width:5;stroke-linecap:round}
+.help-fig .silh{fill:color-mix(in srgb,var(--ink) 16%,transparent);stroke:var(--ink);stroke-width:2}
+.help-fig .silh-a{fill:color-mix(in srgb,var(--ink) 16%,transparent);stroke:var(--ink);stroke-width:2}
+.help-fig .lab-jun{fill:var(--sun-ink);font-weight:600}.help-fig .lab-eq{fill:#8a6cc4;font-weight:600}.help-fig .lab-dec{fill:var(--winter);font-weight:600}
+.help-fig .arrow{stroke:var(--ink-2);stroke-width:1.8}
+.help-fig .hour{stroke:var(--ink-2);stroke-width:1.2;stroke-dasharray:3 4}
+.help-fig .phone-big{fill:var(--ink);opacity:.9}
+.help-fig .eight{stroke:var(--sun);stroke-width:3}
+.help-fig .metal{stroke:var(--ink-2);stroke-width:4}
+.help-fig .nope{stroke:var(--danger);stroke-width:3}
+.help-fig .reticle-ill{stroke:var(--sun);stroke-width:2.2;fill:none}
+.help-fig .dots-ill circle{fill:var(--sun);stroke:var(--surface);stroke-width:1.5}
+.help-fig .cloud-ill path{fill:color-mix(in srgb,var(--winter) 25%,var(--surface));stroke:var(--winter);stroke-width:2}
+.help-fig .lab-sky{fill:var(--winter);font-weight:600}
+.help-fig .sweep-ill{stroke:#ff5d4a;stroke-width:4;stroke-dasharray:2 6;stroke-linecap:round}
+.help-fig .shutter-ill{fill:none;stroke:#ff5d4a;stroke-width:3}
+.help-fig .shutter-in{fill:#ff5d4a}
+.help-fig .tabs-ill rect{fill:var(--surface);stroke:var(--line);stroke-width:1.5}
+.help-fig .list-ill,.help-fig .doc-ill{stroke:var(--ink-2);stroke-width:3}
+.help-fig .grid-ill path{stroke:var(--ink-2);stroke-width:1.3}
+.help-fig .cell-hit{fill:color-mix(in srgb,var(--sun) 55%,transparent);stroke:var(--sun-ink);stroke-width:1.5}
+.help-fig .lab-cell{font:600 10px var(--f-mono);fill:var(--ink)}
+.help-fig .cell-out{fill:none;stroke:var(--ink);stroke-width:2}
+.help-fig .cell-fill{fill:color-mix(in srgb,var(--sun) 60%,transparent);stroke:var(--sun-ink);stroke-width:1.5}
+.help-fig .eq{font:500 15px var(--f-mono);fill:var(--ink)}
+.help-fig .calmini rect{fill:var(--surface);stroke:var(--line)}
+.help-fig .calcells rect{fill:var(--cal-shade)}
+.help-fig .calsun rect{fill:var(--cal-sun)}
+.help-fig .bars rect{fill:var(--line)}
+.help-fig .bars-s rect{fill:var(--sun)}
+.help-fig .cell{fill:none;stroke:var(--ink-2);stroke-width:1;opacity:.7}

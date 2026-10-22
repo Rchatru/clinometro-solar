@@ -4,7 +4,7 @@
 (function () {
 "use strict";
 
-var VERSION = "2.0.0-beta6";
+var VERSION = "2.0.0-beta7";
 var D2R = Math.PI / 180, R2D = 180 / Math.PI;
 var $ = function (id) { return document.getElementById(id); };
 var Cap = window.Capacitor;
@@ -114,13 +114,14 @@ function effPoints(p) {
   p = p || proj();
   if (!corrActive(p)) return p.points;
   return p.points.map(function (q) {
-    var c = correctPoint(p, q), o = {};
-    for (var k in q) o[k] = q[k];
+    var o = {}; for (var k in q) o[k] = q[k];
+    if (q.sky) return o;
+    var c = correctPoint(p, q);
     if (c) { o.az = c.az; o.elev = c.elev; o.corrected = true; } else o.uncorrected = true;
     return o;
   });
 }
-function missingDist(p) { return corrActive(p) ? p.points.filter(function (q) { return distFor(p, q) == null; }).length : 0; }
+function missingDist(p) { return corrActive(p) ? p.points.filter(function (q) { return !q.sky && distFor(p, q) == null; }).length : 0; }
 
 /* ---------------- Fotos (IndexedDB) ---------------- */
 var Photos = (function () {
@@ -248,7 +249,7 @@ async function start() {
   if (camErr) msg.push("No se ha podido abrir la cámara (" + camErr + "). Las lecturas funcionan igual apuntando con la parte trasera del móvil.");
   keepAwake();
   sens.started = true;
-  $("btnSave").disabled = false; $("btnCal").disabled = false;
+  $("btnSave").disabled = false; $("btnCal").disabled = false; $("btnSky").disabled = false;
   var t0 = performance.now();
   (function wait() {
     if (sens.gotData && !msg.length) { $("startPanel").hidden = true; return; }
@@ -334,7 +335,7 @@ function drawTape(head) {
   g.fillStyle = hacc;
   proj().points.forEach(function (p) {
     var dd = norm180(p.head - head); if (Math.abs(dd) > span / 2) return;
-    g.beginPath(); g.arc(cx + dd * ppd, 5, 3, 0, 7); g.fill();
+    g.fillStyle = p.sky ? "#5b9cf0" : hacc; g.beginPath(); g.arc(cx + dd * ppd, 5, 3, 0, 7); g.fill();
   });
   g.globalCompositeOperation = "destination-in"; g.fillStyle = grad; g.fillRect(0, 0, w, h);
   g.restore();
@@ -371,6 +372,18 @@ function savePoint() {
   toast("Punto " + p.points.length + ": " + fmt(a.elev, 1) + "° a " + sgn(Math.round(a.az), 0) + "°" + (a.sd > 0.8 ? " · lectura poco estable" : "") +
     (pt.mag != null && Math.abs(pt.mag) > 0.15 ? " · azimut dudoso por interferencia magnética" : ""), pt.mag != null && Math.abs(pt.mag) > 0.15 ? 3500 : 2400);
 }
+/* Punto de cielo: marca un hueco sin obstáculo en la dirección a la que se apunta */
+function saveSky() {
+  if (!sens.started) return;
+  var a = average(500);
+  if (!a) { toast("Sin datos de los sensores"); return; }
+  var p = proj();
+  p.points.push({ id: uid(), az: +a.az.toFixed(1), head: +a.head.toFixed(1), elev: 0, sd: 0, note: "", t: Date.now(), abs: sens.absolute, sky: true });
+  touch(); haptic("light"); renderCounts();
+  toast("Cielo marcado a " + sgn(Math.round(a.az), 0) + "°: aquí no hay obstáculo");
+}
+$("btnSky").addEventListener("click", saveSky);
+
 /* ---------------- Barrido ----------------
    Manteniendo pulsado el disparador se registran todas las lecturas mientras se recorre el borde del obstáculo.
    Al soltar: se descartan los tramos con giro rápido, se agrupa por grados de azimut (mediana) y se simplifica
@@ -476,7 +489,7 @@ document.querySelectorAll("[data-tab]").forEach(function (b) { b.addEventListene
 /* ---------------- Puntos ---------------- */
 function renderCounts() {
   var n = proj().points.length;
-  $("vCount").textContent = n; $("btnUndo").disabled = !n;
+  $("vCount").textContent = n; $("btnUndo").disabled = !n; $("btnSky").disabled = !sens.started;
 }
 var ICON_DEL = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>';
 function renderPoints() {
@@ -489,10 +502,11 @@ function renderPoints() {
     if (q.photo) li.className = "has-photo";
     li.innerHTML = '<span class="p-n">' + String(i + 1).padStart(2, "0") + '</span>' +
       (q.photo ? '<button class="p-thumb" type="button" aria-label="Ver foto del punto ' + (i + 1) + '"><img alt=""></button>' : '') +
-      '<div class="p-vals"><span><small>Azimut</small>' + sgn(q.az, 0) + '°</span><span><small>Elevación</small>' + fmt(q.elev, 1) + '°</span><span class="sd"><small>Desv.</small>±' + q.sd.toFixed(1).replace(".", ",") + '°</span></div>' +
+      (q.sky ? '<div class="p-vals"><span><small>Azimut</small>' + sgn(q.az, 0) + '°</span><span class="sky"><small>Cielo</small>sin obstáculo</span></div>' :
+      '<div class="p-vals"><span><small>Azimut</small>' + sgn(q.az, 0) + '°</span><span><small>Elevación</small>' + fmt(q.elev, 1) + '°</span><span class="sd"><small>Desv.</small>±' + q.sd.toFixed(1).replace(".", ",") + '°</span></div>') +
       '<button class="p-del" type="button" aria-label="Eliminar punto ' + (i + 1) + '">' + ICON_DEL + '</button>' +
       '<input class="p-note" type="text" placeholder="Añadir nota" aria-label="Nota del punto ' + (i + 1) + '">';
-    if (corrActive(p)) {
+    if (corrActive(p) && !q.sky) {
       var cc = correctPoint(p, q), box = document.createElement("div"); box.className = "p-corr";
       if (corrCfg(p).mode === "point") {
         var lab = document.createElement("label"); lab.className = "p-dist"; lab.textContent = "Distancia";
@@ -597,12 +611,12 @@ $("btnNewProj").addEventListener("click", function () {
 function csvText(sep) {
   var p = proj();
   var corr = corrActive(p), ef = effPoints(p), dec = function (v, d) { return v == null ? "" : v.toFixed(d).replace(".", ","); };
-  var head = ["n", "azimut_sur_deg", "rumbo_norte_deg", "elevacion_deg", "desviacion_deg", "nota", "fecha_hora", "ref_norte"];
+  var head = ["n", "azimut_sur_deg", "rumbo_norte_deg", "elevacion_deg", "desviacion_deg", "nota", "fecha_hora", "ref_norte", "tipo"];
   if (corr) head = head.concat(["distancia_m", "azimut_corregido_deg", "elevacion_corregida_deg"]);
   var rows = [head];
   p.points.forEach(function (q, i) {
     var r = [i + 1, dec(q.az, 1), dec(q.head, 1), dec(q.elev, 1), dec(q.sd, 2),
-      (q.note || "").replace(/[;\t\r\n]/g, " "), new Date(q.t).toISOString(), q.abs ? "si" : "no"];
+      (q.note || "").replace(/[;\t\r\n]/g, " "), new Date(q.t).toISOString(), q.abs ? "si" : "no", q.sky ? "cielo" : "obstaculo"];
     if (corr) r = r.concat([dec(distFor(p, q), 2), ef[i].corrected ? dec(ef[i].az, 1) : "", ef[i].corrected ? dec(ef[i].elev, 1) : ""]);
     rows.push(r);
   });
@@ -675,7 +689,8 @@ function drawChartOn(c, w, h, dpr, mode, onScreen) {
   }
   /* silueta del proyecto comparado */
   function silhouette(points, color, fillA, dashed) {
-    var pts = points.filter(function (q) { return q.az >= azMin && q.az <= azMax; }).slice().sort(function (a, b) { return a.az - b.az; });
+    var meas = points.filter(function (q) { return q.az >= azMin && q.az <= azMax; });
+    var pts = IDAE.expandProfile(meas);
     if (!pts.length) return;
     if (fillA) {
       g.beginPath(); g.moveTo(X(pts[0].az), Y(0));
@@ -686,7 +701,11 @@ function drawChartOn(c, w, h, dpr, mode, onScreen) {
     g.strokeStyle = color; g.lineWidth = 2; g.setLineDash(dashed ? [5, 4] : []);
     g.beginPath(); pts.forEach(function (q, i) { var x = X(q.az), y = Y(Math.max(0, q.elev)); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke();
     g.setLineDash([]);
-    if (!dashed) { g.fillStyle = color; pts.forEach(function (q) { g.beginPath(); g.arc(X(q.az), Y(Math.max(0, q.elev)), 3, 0, 7); g.fill(); }); }
+    if (!dashed) meas.forEach(function (q) {
+      g.beginPath(); g.arc(X(q.az), Y(Math.max(0, q.elev)), q.sky ? 4 : 3, 0, 7);
+      if (q.sky) { g.strokeStyle = css("--winter"); g.lineWidth = 2; g.fillStyle = surface; g.fill(); g.stroke(); }
+      else { g.fillStyle = color; g.fill(); }
+    });
   }
   silhouette(effPoints(p), ink, .16, false);
   var cmp = onScreen && S.compareId && db.projects.filter(function (x) { return x.id === S.compareId && x.id !== p.id; })[0];
@@ -1031,34 +1050,112 @@ $("btnWallAz").addEventListener("click", function () {
   corrCfg(proj()).wallAz = +a.az.toFixed(0); touch(); renderCorr(); toast("Dirección de la fachada: " + sgn(a.az, 0) + "°");
 });
 
-/* ---------------- Ayuda: punto de estudio ---------------- */
-var helpStep = 0, helpSteps = document.querySelectorAll(".help-step");
+/* ---------------- Guías de ayuda ----------------
+   Cada guía es una hoja con pasos (.help-step); se abre con cualquier botón data-open-help="nombre"
+   y, si lleva data-help-step, directamente en ese paso. */
+var helpCur = null, helpStep = 0;
+function helpSheet(name) { return document.querySelector('.sheet.help[data-help="' + name + '"]'); }
 function showHelp(i) {
-  helpStep = Math.max(0, Math.min(helpSteps.length - 1, i));
-  helpSteps.forEach(function (el, k) {
+  var sh = helpSheet(helpCur), steps = sh.querySelectorAll(".help-step");
+  helpStep = Math.max(0, Math.min(steps.length - 1, i));
+  steps.forEach(function (el, k) {
     el.hidden = k !== helpStep; el.classList.remove("play");
     if (k === helpStep) { void el.offsetWidth; el.classList.add("play"); }
   });
-  $("helpDots").innerHTML = Array.prototype.map.call(helpSteps, function (_, k) { return '<i class="' + (k === helpStep ? "on" : "") + '"></i>'; }).join("");
-  $("helpPrev").disabled = helpStep === 0;
-  $("helpNext").textContent = helpStep === helpSteps.length - 1 ? "Entendido" : "Siguiente";
+  sh.querySelector(".dots").innerHTML = Array.prototype.map.call(steps, function (_, k) { return '<i class="' + (k === helpStep ? "on" : "") + '"></i>'; }).join("");
+  sh.querySelector(".help-prev").disabled = helpStep === 0;
+  sh.querySelector(".help-next").textContent = helpStep === steps.length - 1 ? "Entendido" : "Siguiente";
+  sh.scrollTop = 0;
 }
-function openHelp() { $("helpSheet").hidden = false; $("helpBg").hidden = false; showHelp(0); }
-function closeHelp() { $("helpSheet").hidden = true; $("helpBg").hidden = true; }
-$("btnCorrHelp").addEventListener("click", openHelp);
-$("helpClose").addEventListener("click", closeHelp);
+function openHelp(name, step) {
+  closeHelp(); helpCur = name;
+  helpSheet(name).hidden = false; $("helpBg").hidden = false; showHelp(step || 0);
+}
+function closeHelp() {
+  document.querySelectorAll(".sheet.help").forEach(function (sh) { sh.hidden = true; });
+  $("helpBg").hidden = true; helpCur = null;
+}
+document.querySelectorAll("[data-open-help]").forEach(function (b) {
+  b.addEventListener("click", function (e) { e.stopPropagation(); openHelp(b.dataset.openHelp, +(b.dataset.helpStep || 0)); });
+});
 $("helpBg").addEventListener("click", closeHelp);
-$("helpPrev").addEventListener("click", function () { showHelp(helpStep - 1); });
-$("helpNext").addEventListener("click", function () { if (helpStep === helpSteps.length - 1) closeHelp(); else showHelp(helpStep + 1); });
-/* deslizar para cambiar de paso */
-(function () {
+document.querySelectorAll(".sheet.help").forEach(function (sh) {
+  sh.querySelector(".help-close").addEventListener("click", closeHelp);
+  sh.querySelector(".help-prev").addEventListener("click", function () { showHelp(helpStep - 1); });
+  sh.querySelector(".help-next").addEventListener("click", function () {
+    if (helpStep === sh.querySelectorAll(".help-step").length - 1) closeHelp(); else showHelp(helpStep + 1);
+  });
   var x0 = null;
-  $("helpSheet").addEventListener("touchstart", function (e) { x0 = e.touches[0].clientX; }, { passive: true });
-  $("helpSheet").addEventListener("touchend", function (e) {
+  sh.addEventListener("touchstart", function (e) { x0 = e.touches[0].clientX; }, { passive: true });
+  sh.addEventListener("touchend", function (e) {
     if (x0 == null) return; var dx = e.changedTouches[0].clientX - x0; x0 = null;
     if (Math.abs(dx) > 60) showHelp(helpStep + (dx < 0 ? 1 : -1));
   });
-})();
+});
+
+/* ---------------- Copia de seguridad ----------------
+   Archivo JSON con los proyectos y, si se pide, las fotos en base64. Al importar no se pisa nada:
+   si el proyecto ya existe en este móvil, se añade como copia con identificadores nuevos. */
+var BK_FORMAT = "clinometro-solar";
+function dataURLToBlob(u) {
+  var parts = u.split(","), mime = (parts[0].match(/data:([^;]+)/) || [])[1] || "image/jpeg", bin = atob(parts[1]), arr = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
+async function exportBackup() {
+  var scope = $("inBkScope").value, withPhotos = $("inBkPhotos").checked;
+  var list = scope === "current" ? [proj()] : db.projects;
+  var out = { formato: BK_FORMAT, version: 1, exportado: new Date().toISOString(), app: VERSION, proyectos: JSON.parse(JSON.stringify(list)), fotos: {} };
+  var nPhotos = 0;
+  if (withPhotos) {
+    for (var i = 0; i < list.length; i++) for (var k = 0; k < list[i].points.length; k++) {
+      var q = list[i].points[k]; if (!q.photo) continue;
+      var b = await Photos.get(q.id).catch(function () { return null; });
+      if (b) { out.fotos[q.id] = await blobToDataURL(b); nPhotos++; }
+    }
+  } else out.proyectos.forEach(function (p) { p.points.forEach(function (q) { delete q.photo; }); });
+  var base = scope === "current" ? fileName("json").replace(/\.json$/, "") : "clinometro_copia_" + new Date().toISOString().slice(0, 10);
+  await shareText(JSON.stringify(out), base + ".json", "application/json");
+  $("bkInfo").textContent = "Copia creada: " + list.length + (list.length === 1 ? " proyecto" : " proyectos") + (withPhotos ? " y " + nPhotos + " fotos." : ", sin fotos.");
+}
+$("btnBkExport").addEventListener("click", function () {
+  $("busy").hidden = false; $("busyMsg").textContent = "Preparando la copia…";
+  exportBackup().catch(function (e) { if (!/cancel/i.test(String(e && e.message))) toast("No se ha podido exportar la copia: " + (e && e.message || e), 5000); })
+    .finally(function () { $("busy").hidden = true; $("busyMsg").textContent = "Generando informe…"; });
+});
+$("btnBkImport").addEventListener("click", function () { $("inBkFile").value = ""; $("inBkFile").click(); });
+$("inBkFile").addEventListener("change", function () {
+  var f = this.files && this.files[0]; if (!f) return;
+  var rd = new FileReader();
+  rd.onload = function () { importBackup(String(rd.result)).catch(function (e) { toast(e.message || "No se ha podido importar", 5000); }); };
+  rd.readAsText(f);
+});
+async function importBackup(text) {
+  var data;
+  try { data = JSON.parse(text.replace(/^\ufeff/, "")); } catch (e) { throw new Error("El archivo no es una copia de Clinómetro Solar."); }
+  if (!data || data.formato !== BK_FORMAT || !Array.isArray(data.proyectos)) throw new Error("El archivo no es una copia de Clinómetro Solar.");
+  var fotos = data.fotos || {}, nP = 0, nF = 0, first = null;
+  var known = {}; db.projects.forEach(function (p) { known[p.id] = true; p.points.forEach(function (q) { known[q.id] = true; }); });
+  for (var i = 0; i < data.proyectos.length; i++) {
+    var p = data.proyectos[i];
+    if (!p || !Array.isArray(p.points) || typeof p.lat !== "number") continue;
+    var dup = known[p.id];
+    if (dup) { p.id = uid(); p.name = (p.name || "Proyecto") + " (importado)"; }
+    if (!p.id) p.id = uid();
+    for (var k = 0; k < p.points.length; k++) {
+      var q = p.points[k], oldId = q.id;
+      if (!q.id || known[q.id]) q.id = uid();
+      if (fotos[oldId]) { try { await Photos.put(q.id, dataURLToBlob(fotos[oldId])); q.photo = true; nF++; } catch (e) { q.photo = false; } }
+      else q.photo = false;
+    }
+    withDefaults(p); p.updated = p.updated || Date.now();
+    db.projects.push(p); nP++; if (!first) first = p;
+  }
+  if (!nP) throw new Error("La copia no contiene proyectos válidos.");
+  db.currentId = first.id; save(); renderCounts(); renderSettings();
+  $("bkInfo").textContent = "Importados " + nP + (nP === 1 ? " proyecto" : " proyectos") + (nF ? " y " + nF + " fotos" : "") + ". Están en la lista de proyectos; el primero queda abierto.";
+  toast("Copia importada: " + nP + (nP === 1 ? " proyecto" : " proyectos"));
+}
 
 /* ---------------- Ajustes ---------------- */
 function renderSettings() {
@@ -1323,11 +1420,11 @@ async function buildReport() {
   if (corrActive(p)) {
     var efp = effPoints(p);
     table(["N.º", "Azimut", "Elevación", "Dist.", "Az. corr.", "El. corr.", "Nota"],
-      p.points.map(function (q, i) { var d = distFor(p, q); return { cells: [String(i + 1), dot(q.az, 1) + "°", dot(q.elev, 1) + "°", d == null ? "-" : dot(d, 1) + " m",
+      p.points.map(function (q, i) { var d = q.sky ? null : distFor(p, q); return { cells: [String(i + 1), dot(q.az, 1) + "°", q.sky ? "cielo" : dot(q.elev, 1) + "°", d == null ? "-" : dot(d, 1) + " m",
         efp[i].corrected ? dot(efp[i].az, 1) + "°" : "-", efp[i].corrected ? dot(efp[i].elev, 1) + "°" : "-", q.note || ""] }; }),
       [12, 22, 24, 22, 24, 24, W - 128], ["left", "right", "right", "right", "right", "right", "left"]);
   } else table(["N.º", "Azimut", "Rumbo", "Elevación", "Desv.", "Nota"],
-    p.points.map(function (q, i) { return { cells: [String(i + 1), dot(q.az, 1) + "°", dot(q.head, 1) + "°", dot(q.elev, 1) + "°", "±" + q.sd.toFixed(1).replace(".", ",") + "°", q.note || ""] }; }),
+    p.points.map(function (q, i) { return { cells: [String(i + 1), dot(q.az, 1) + "°", dot(q.head, 1) + "°", q.sky ? "cielo" : dot(q.elev, 1) + "°", q.sky ? "-" : "±" + q.sd.toFixed(1).replace(".", ",") + "°", q.note || ""] }; }),
     [14, 24, 24, 26, 20, W - 108], ["left", "right", "right", "right", "right", "left"]);
 
   /* ---- Fotos ---- */
