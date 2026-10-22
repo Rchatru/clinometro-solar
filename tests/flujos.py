@@ -39,9 +39,11 @@ with sync_playwright() as pw:
         if init: pg.add_init_script(init)
         if PVG:
             def mock(route):
-                u = route.request.url; f = "hz.json" if "printhorizon" in u else ("calc2.json" if "userhorizon" in u else "calc.json")
+                u = route.request.url; f = "hz6.json" if "horizon-profile" in u else ("y10h.json" if "horizon_profile=" in u else "y10.json")
+                pg.pvgis_urls.append(u)
                 route.fulfill(status=200, body=open(os.path.join(PVG, f)).read(), headers={"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"})
-            pg.route("https://re.jrc.ec.europa.eu/**", mock)
+            pg.pvgis_urls = []
+            pg.route("https://photovoltaic-geographic-information-system.ec.europa.eu/**", mock)
         pg.goto(URL); pg.wait_for_timeout(300)
         return ctx, pg
     try:
@@ -184,7 +186,10 @@ with sync_playwright() as pw:
         check("calendario: ahora", pg.input_value("#inQDate") != "")
         if PVG:
             pg.click("#btnPvgis"); pg.wait_for_selector("#pvRes:not([hidden])", timeout=20000)
-            check("PVGIS: resultados", pg.inner_text("#pvBase") == "1681")
+            check("PVGIS: resultados (media 2015–2024)", pg.inner_text("#pvBase") == "1750" and pg.inner_text("#pvShaded") == "1695", (pg.inner_text("#pvBase"), pg.inner_text("#pvShaded")))
+            hzu = [u for u in pg.pvgis_urls if "horizon_profile=" in u]
+            check("PVGIS: envía el horizonte combinado (36 valores)", hzu and len(hzu[0].split("horizon_profile=")[1].split("&")[0].split("%2C")) == 36, hzu[:1])
+            check("PVGIS: orientación sur = 180°", all("surface_orientation=180" in u for u in pg.pvgis_urls if "performance" in u))
             pg.fill("#inBeta", "35"); pg.press("#inBeta", "Tab"); pg.wait_for_timeout(100)
             check("PVGIS: avisa si el proyecto cambia", "vuelva a calcular" in pg.inner_text("#pvMeta"))
 

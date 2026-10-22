@@ -4,7 +4,7 @@
 (function () {
 "use strict";
 
-var VERSION = "2.0.0-beta7";
+var VERSION = "2.0.0-beta8";
 var D2R = Math.PI / 180, R2D = 180 / Math.PI;
 var $ = function (id) { return document.getElementById(id); };
 var Cap = window.Capacitor;
@@ -938,31 +938,45 @@ function onLossInput() {
 }
 ["inBeta", "inAlpha", "inTable", "inCase"].forEach(function (id) { $(id).addEventListener("change", onLossInput); });
 
-/* ---------------- Producción con PVGIS ----------------
-   PVGIS no admite consultas desde páginas web (CORS), así que en la app Android se usa el cliente HTTP nativo. */
-var PVGIS = "https://re.jrc.ec.europa.eu/api/v5_3/";
+/* ---------------- Producción con PVGIS 6 ----------------
+   API de PVGIS 6 (JRC, Comisión Europea). Admite consultas desde la web (CORS abierto).
+   Devuelve la potencia hora a hora de la serie pedida; la app calcula la media anual y mensual. */
+var PVGIS = "https://photovoltaic-geographic-information-system.ec.europa.eu/api/v6/";
+var PV_Y0 = 2015, PV_Y1 = 2024;
 async function pvgisGet(path, params) {
   var q = Object.keys(params).map(function (k) { return k + "=" + encodeURIComponent(params[k]); }).join("&");
-  var url = PVGIS + path + "?" + q;
-  if (isNative) {
+  var url = PVGIS + path + "?" + q, status = 0, text = "";
+  try { var res = await fetch(url); status = res.status; text = await res.text(); }
+  catch (e) {
+    if (!isNative) throw new Error("No hay conexión con PVGIS. Compruebe la conexión a internet.");
     var H = plugin("CapacitorHttp");
-    var r = await H.get({ url: url, connectTimeout: 30000, readTimeout: 60000 });
-    var d = typeof r.data === "string" ? JSON.parse(r.data) : r.data;
-    if (r.status !== 200) throw new Error((d && d.message) || "PVGIS respondió " + r.status);
-    return d;
+    var r = await H.get({ url: url, connectTimeout: 30000, readTimeout: 90000, responseType: "text" });
+    status = r.status; text = typeof r.data === "string" ? r.data : JSON.stringify(r.data);
   }
-  var res = await fetch(url);
-  var data = await res.json();
-  if (!res.ok) throw new Error(data.message || "PVGIS respondió " + res.status);
+  var data;
+  try { data = JSON.parse(text); }
+  catch (e) { throw new Error(/<html|<!doctype/i.test(text) ? "PVGIS ha rechazado la consulta o está en mantenimiento (respuesta " + status + "). Inténtelo más tarde." : "PVGIS ha devuelto una respuesta no válida."); }
+  if (status !== 200) {
+    var det = data && data.detail; if (det && typeof det !== "string") det = JSON.stringify(det).slice(0, 160);
+    throw new Error(det || "PVGIS respondió " + status);
+  }
   return data;
 }
-/* Horizonte para PVGIS: 36 alturas cada 10°, empezando por el norte y en sentido horario.
-   Se toma el mayor entre el relieve que da PVGIS y los obstáculos medidos. */
+/* Potencia horaria (W) → energía media mensual y anual (kWh) */
+function energyFromHourly(power) {
+  var m = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], t0 = Date.UTC(PV_Y0, 0, 1), years = PV_Y1 - PV_Y0 + 1;
+  for (var i = 0; i < power.length; i++) { var v = power[i]; if (v == null || isNaN(v)) continue; m[new Date(t0 + i * 3600000).getUTCMonth()] += v; }
+  var Em = m.map(function (x) { return x / 1000 / years; });
+  return { Ey: Em.reduce(function (a, b) { return a + b; }, 0), Em: Em };
+}
+/* Horizonte: 36 alturas cada 10°, empezando por el norte y en sentido horario.
+   Se toma el mayor entre el relieve de PVGIS y los obstáculos medidos. */
 function horizonFor(p, terrain) {
   var prof = IDAE.profileFn(effPoints(p)), out = [];
   var ter = (terrain || []).slice().sort(function (a, b) { return a.A - b.A; });
   function terr(az) {
     if (!ter.length) return 0;
+    if (az <= ter[0].A) return ter[0].H_hor;
     for (var i = 1; i < ter.length; i++) if (az <= ter[i].A) { var a = ter[i - 1], b = ter[i]; return a.H_hor + (b.H_hor - a.H_hor) * (az - a.A) / ((b.A - a.A) || 1); }
     return ter[ter.length - 1].H_hor;
   }
@@ -974,19 +988,22 @@ async function runPvgis() {
   if (!p.points.length) { toast("Mida primero el perfil de obstáculos"); return; }
   var btn = $("btnPvgis"); btn.disabled = true; btn.textContent = "Consultando PVGIS…";
   try {
-    var base = { lat: p.lat, lon: p.lon, peakpower: p.kwp || 1, loss: p.sysLoss == null ? 14 : p.sysLoss, angle: p.beta, aspect: p.alphaMod, outputformat: "json" };
-    var hz = await pvgisGet("printhorizon", { lat: p.lat, lon: p.lon, outputformat: "json" });
-    var terrain = hz.outputs && hz.outputs.horizon_profile || [];
-    var r0 = await pvgisGet("PVcalc", base);
+    var kwp = p.kwp || 1, loss = p.sysLoss == null ? 14 : p.sysLoss;
+    var hz = await pvgisGet("topography/horizon-profile", { latitude: p.lat, longitude: p.lon, angle_output_units: "Degrees" });
+    var hp = hz.horizon_profile || {}, terrain = (hp.azimuth || []).map(function (a, i) { return { A: norm180(a - 180), H_hor: hp.horizon_height[i] }; });
+    var base = { latitude: p.lat, longitude: p.lon, surface_orientation: norm360(180 + p.alphaMod), surface_tilt: p.beta,
+      start_time: PV_Y0 + "-01-01T00:00:00", end_time: PV_Y1 + "-12-31T23:59:59", frequency: "Hourly",
+      "peak-power": kwp, system_efficiency: +(1 - loss / 100).toFixed(3), analysis: "None", angle_output_units: "Degrees" };
+    var r0 = await pvgisGet("performance/broadband", base);
     var withObs = {}; for (var k in base) withObs[k] = base[k];
-    withObs.userhorizon = horizonFor(p, terrain).join(",");
-    var r1 = await pvgisGet("PVcalc", withObs);
-    var pick = function (r) { return { Ey: r.outputs.totals.fixed.E_y, Em: r.outputs.monthly.fixed.map(function (m) { return m.E_m; }) }; };
-    p.pvgis = { t: Date.now(), kwp: base.peakpower, loss: base.loss, angle: base.angle, aspect: base.aspect, db: r0.inputs.meteo_data.radiation_db, base: pick(r0), shaded: pick(r1), horizon: withObs.userhorizon };
+    withObs.horizon_profile = horizonFor(p, terrain).join(",");
+    var r1 = await pvgisGet("performance/broadband", withObs);
+    if (!r0.power || !r1.power) throw new Error("PVGIS no ha devuelto la serie de producción.");
+    p.pvgis = { t: Date.now(), kwp: kwp, loss: loss, angle: p.beta, aspect: p.alphaMod, db: "PVGIS 6, SARAH-3, " + PV_Y0 + "–" + PV_Y1,
+      base: energyFromHourly(r0.power), shaded: energyFromHourly(r1.power), horizon: withObs.horizon_profile };
     touch(); renderPvgis();
   } catch (e) {
-    var msg = String(e && e.message || e);
-    toast(isNative ? "No se ha podido consultar PVGIS: " + msg : "PVGIS no admite consultas desde la versión web. Use la app Android.", 4500);
+    toast("No se ha podido consultar PVGIS: " + (e && e.message || e), 5000);
   } finally { btn.disabled = false; btn.textContent = "Calcular con PVGIS"; }
 }
 $("btnPvgis").addEventListener("click", runPvgis);
@@ -1408,7 +1425,7 @@ async function buildReport() {
     var pvImg = withTheme("light", function () { var c = document.createElement("canvas"); drawPvChartOn(c, 640, 200, 2.2, false); return c.toDataURL("image/jpeg", 0.9); });
     doc.addImage(pvImg, "JPEG", M, y, W, W * 200 / 640); y += W * 200 / 640 + 4;
     font("normal", 8, INK2);
-    var pl = doc.splitTextToSize(pdfSafe("Producción mensual (kWh) con y sin los obstáculos medidos. PVGIS (Comisión Europea, " + pv.db + "), instalación conectada a red de " + String(pv.kwp).replace(".", ",") + " kWp, " + pv.loss +
+    var pl = doc.splitTextToSize(pdfSafe("Producción media mensual (kWh) con y sin los obstáculos medidos. " + pv.db + " (Comisión Europea), instalación conectada a red de " + String(pv.kwp).replace(".", ",") + " kWp, " + pv.loss +
       " % de pérdidas del sistema, inclinación " + pv.angle + "° y orientación " + pv.aspect + "°. El horizonte usado combina el relieve de PVGIS con los obstáculos medidos. Consulta del " + new Date(pv.t).toLocaleDateString("es-ES") + "."), W);
     doc.text(pl, M, y); y += pl.length * 3.6 + 6;
   }
