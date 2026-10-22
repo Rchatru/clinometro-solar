@@ -4,7 +4,7 @@
 (function () {
 "use strict";
 
-var VERSION = "2.0.0-beta4";
+var VERSION = "2.0.0-beta5";
 var D2R = Math.PI / 180, R2D = 180 / Math.PI;
 var $ = function (id) { return document.getElementById(id); };
 var Cap = window.Capacitor;
@@ -290,7 +290,7 @@ function loop(t) {
   if (dev != null && Math.abs(dev) > 0.15) { mchip.hidden = false; mchip.lastChild.textContent = "Interferencia magnética " + sgn(dev * 100, 0) + " %"; }
   else if (sens.magAcc != null && sens.magAcc <= 1) { mchip.hidden = false; mchip.lastChild.textContent = "Calibre la brújula: mueva el móvil en forma de 8"; }
   else mchip.hidden = true;
-  drawTape(a.head);
+  $("tape").hidden = false; drawTape(a.head);
 }
 
 /* Cinta de rumbo, como la de un instrumento de navegación */
@@ -299,7 +299,7 @@ function drawTape(head) {
   if (!w) return;
   if (c.width !== Math.round(w * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
   var g = c.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
-  var span = 100, ppd = w / span, cx = w / 2;
+  var span = 100, ppd = w / span, cx = w / 2, hrgb = css("--hud-rgb"), hacc = css("--hud-accent");
   var grad = g.createLinearGradient(0, 0, w, 0);
   grad.addColorStop(0, "rgba(255,255,255,0)"); grad.addColorStop(.18, "rgba(255,255,255,1)"); grad.addColorStop(.82, "rgba(255,255,255,1)"); grad.addColorStop(1, "rgba(255,255,255,0)");
   g.save();
@@ -307,20 +307,20 @@ function drawTape(head) {
   var start = Math.floor((head - span / 2) / 5) * 5;
   for (var d = start; d <= head + span / 2; d += 5) {
     var x = cx + (d - head) * ppd, n = norm360(d), major = n % 45 === 0, mid = n % 15 === 0;
-    g.strokeStyle = "rgba(244,247,251," + (major ? .95 : mid ? .7 : .4) + ")"; g.lineWidth = major ? 1.6 : 1;
+    g.strokeStyle = "rgba(" + hrgb + "," + (major ? .95 : mid ? .7 : .4) + ")"; g.lineWidth = major ? 1.6 : 1;
     g.beginPath(); g.moveTo(x, h - 2); g.lineTo(x, h - (major ? 14 : mid ? 10 : 6)); g.stroke();
-    if (major) { g.fillStyle = n === 180 ? "#ffad6b" : "rgba(244,247,251,.95)"; g.font = "600 12px " + css("--f-ui"); g.fillText(CARD[n / 22.5], x, h - 19); }
-    else if (mid) { g.fillStyle = "rgba(244,247,251,.6)"; g.font = "500 10px " + css("--f-mono"); g.fillText(String(n), x, h - 19); }
+    if (major) { g.fillStyle = n === 180 ? hacc : "rgba(" + hrgb + ",.95)"; g.font = "600 12px " + css("--f-ui"); g.fillText(CARD[n / 22.5], x, h - 19); }
+    else if (mid) { g.fillStyle = "rgba(" + hrgb + ",.6)"; g.font = "500 10px " + css("--f-mono"); g.fillText(String(n), x, h - 19); }
   }
   /* puntos guardados */
-  g.fillStyle = "#ffad6b";
+  g.fillStyle = hacc;
   proj().points.forEach(function (p) {
     var dd = norm180(p.head - head); if (Math.abs(dd) > span / 2) return;
     g.beginPath(); g.arc(cx + dd * ppd, 5, 3, 0, 7); g.fill();
   });
   g.globalCompositeOperation = "destination-in"; g.fillStyle = grad; g.fillRect(0, 0, w, h);
   g.restore();
-  g.fillStyle = "#ffd27a"; g.beginPath(); g.moveTo(cx - 5, h); g.lineTo(cx + 5, h); g.lineTo(cx, h - 7); g.closePath(); g.fill();
+  g.fillStyle = css("--reticle"); g.beginPath(); g.moveTo(cx - 5, h); g.lineTo(cx + 5, h); g.lineTo(cx, h - 7); g.closePath(); g.fill();
 }
 
 /* ---------------- Disparo ---------------- */
@@ -1008,6 +1008,35 @@ $("btnWallAz").addEventListener("click", function () {
   corrCfg(proj()).wallAz = +a.az.toFixed(0); touch(); renderCorr(); toast("Dirección de la fachada: " + sgn(a.az, 0) + "°");
 });
 
+/* ---------------- Ayuda: punto de estudio ---------------- */
+var helpStep = 0, helpSteps = document.querySelectorAll(".help-step");
+function showHelp(i) {
+  helpStep = Math.max(0, Math.min(helpSteps.length - 1, i));
+  helpSteps.forEach(function (el, k) {
+    el.hidden = k !== helpStep; el.classList.remove("play");
+    if (k === helpStep) { void el.offsetWidth; el.classList.add("play"); }
+  });
+  $("helpDots").innerHTML = Array.prototype.map.call(helpSteps, function (_, k) { return '<i class="' + (k === helpStep ? "on" : "") + '"></i>'; }).join("");
+  $("helpPrev").disabled = helpStep === 0;
+  $("helpNext").textContent = helpStep === helpSteps.length - 1 ? "Entendido" : "Siguiente";
+}
+function openHelp() { $("helpSheet").hidden = false; $("helpBg").hidden = false; showHelp(0); }
+function closeHelp() { $("helpSheet").hidden = true; $("helpBg").hidden = true; }
+$("btnCorrHelp").addEventListener("click", openHelp);
+$("helpClose").addEventListener("click", closeHelp);
+$("helpBg").addEventListener("click", closeHelp);
+$("helpPrev").addEventListener("click", function () { showHelp(helpStep - 1); });
+$("helpNext").addEventListener("click", function () { if (helpStep === helpSteps.length - 1) closeHelp(); else showHelp(helpStep + 1); });
+/* deslizar para cambiar de paso */
+(function () {
+  var x0 = null;
+  $("helpSheet").addEventListener("touchstart", function (e) { x0 = e.touches[0].clientX; }, { passive: true });
+  $("helpSheet").addEventListener("touchend", function (e) {
+    if (x0 == null) return; var dx = e.changedTouches[0].clientX - x0; x0 = null;
+    if (Math.abs(dx) > 60) showHelp(helpStep + (dx < 0 ? 1 : -1));
+  });
+})();
+
 /* ---------------- Ajustes ---------------- */
 function renderSettings() {
   var p = proj();
@@ -1033,21 +1062,71 @@ $("inVol").addEventListener("change", function () { S.vol = this.checked; save()
 $("inPhoto").addEventListener("change", function () { S.photos = this.checked; save(); });
 function applyTap() { $("tapzone").hidden = !S.tap; }
 
-function locate(silent) {
-  if (!navigator.geolocation) { if (!silent) toast("Este dispositivo no ofrece ubicación"); return; }
-  if (!silent) { $("btnGps").disabled = true; $("gpsInfo").textContent = "Buscando señal GPS…"; }
-  navigator.geolocation.getCurrentPosition(function (pos) {
+/* Búsqueda de la ubicación. En Android se comprueba antes que la ubicación del sistema esté activada
+   y, si no lo está, se muestra el diálogo del sistema para activarla. */
+var gpsWatch = null, gpsTimer = null;
+function gpsMsg(text, kind, actions) {
+  var box = $("gpsMsg"); box.hidden = !text; box.className = "gps-msg " + (kind || "");
+  $("gpsMsgText").textContent = text || "";
+  $("btnLocSettings").hidden = !(actions && actions.settings);
+  $("btnGpsRetry").hidden = !(actions && actions.retry);
+  $("btnGpsCancel").hidden = !(actions && actions.cancel);
+}
+function gpsStop() {
+  if (gpsWatch != null) { try { navigator.geolocation.clearWatch(gpsWatch); } catch (e) {} gpsWatch = null; }
+  clearTimeout(gpsTimer); $("btnGps").disabled = false;
+}
+async function locate(silent) {
+  if (!navigator.geolocation) { if (!silent) gpsMsg("Este dispositivo no ofrece ubicación.", "bad"); return; }
+  if (isNative) {
+    var Dev = plugin("Dispositivo");
+    try {
+      var st = await Dev.locationStatus();
+      if (!st.enabled) {
+        if (silent) return;
+        gpsMsg("La ubicación del móvil está desactivada. Actívela para que la app pueda leer el GPS.", "warn");
+        var r = await Dev.requestLocationOn();
+        if (!r.enabled) { gpsMsg("La ubicación sigue desactivada. Actívela en los ajustes del móvil y vuelva a pulsar «Usar GPS».", "bad", { settings: true, retry: true }); return; }
+      }
+    } catch (e) { /* sin servicios de Google: se intenta igualmente */ }
+  }
+  gpsStop();
+  if (!silent) { $("btnGps").disabled = true; gpsMsg("Buscando señal GPS… Al aire libre suele tardar menos de 30 segundos.", "", { cancel: true }); }
+  var best = null;
+  function done(pos) {
+    gpsStop();
     var p = proj(), c = pos.coords;
     p.lat = +c.latitude.toFixed(5); p.lon = +c.longitude.toFixed(5); p.acc = c.accuracy;
     var d = wmmDecl(p.lat, p.lon); if (d != null) { p.decl = +d.toFixed(1); p.declSource = "wmm"; }
-    touch(); $("btnGps").disabled = false;
+    touch(); gpsMsg("");
     if (currentView === "settings") renderSettings();
     if (!silent) toast("Ubicación actualizada · declinación " + fmt(p.decl, 1) + "°");
+  }
+  gpsWatch = navigator.geolocation.watchPosition(function (pos) {
+    if (!best || pos.coords.accuracy < best.coords.accuracy) best = pos;
+    if (pos.coords.accuracy <= 30) done(pos);           /* suficiente para la latitud y la declinación */
+    else if (!silent) gpsMsg("Señal recibida (±" + Math.round(pos.coords.accuracy) + " m). Mejorando la precisión…", "", { cancel: true });
   }, function (err) {
-    $("btnGps").disabled = false;
-    if (!silent) { gpsInfo(); toast(err.code === 1 ? "Permiso de ubicación denegado" : "No se ha podido obtener la ubicación", 3200); }
-  }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 });
+    gpsStop();
+    if (silent) return;
+    if (err.code === 1) gpsMsg("La app no tiene permiso de ubicación. Permítalo en los ajustes de la app (Permisos → Ubicación).", "bad", { retry: true });
+    else gpsMsg("No se ha podido obtener la ubicación. Compruebe que la ubicación del móvil está activada y pruebe al aire libre.", "bad", { settings: isNative, retry: true });
+  }, { enableHighAccuracy: true, maximumAge: 30000 });
+  gpsTimer = setTimeout(function () {
+    if (best) { done(best); return; }
+    gpsStop();
+    if (!silent) gpsMsg("No llega señal GPS después de 45 segundos. Salga al exterior, lejos de edificios altos, y vuelva a intentarlo.", "bad", { settings: isNative, retry: true });
+  }, 45000);
 }
+$("btnGpsCancel").addEventListener("click", function () { gpsStop(); gpsMsg(""); });
+/* Al volver de los ajustes del sistema con la ubicación ya activada, se reintenta solo */
+document.addEventListener("visibilitychange", function () {
+  if (document.hidden || !isNative || $("btnLocSettings").hidden || $("gpsMsg").hidden) return;
+  var Dev = plugin("Dispositivo"); if (!Dev) return;
+  Dev.locationStatus().then(function (st) { if (st.enabled) locate(false); }).catch(function () {});
+});
+$("btnGpsRetry").addEventListener("click", function () { locate(false); });
+$("btnLocSettings").addEventListener("click", function () { var Dev = plugin("Dispositivo"); if (Dev) Dev.openLocationSettings().catch(function () {}); });
 $("btnGps").addEventListener("click", function () { locate(false); });
 function maybeAutoGps() {
   try { navigator.permissions.query({ name: "geolocation" }).then(function (r) { if (r.state === "granted") locate(true); }); } catch (e) {}
@@ -1065,6 +1144,9 @@ function calInfo() { $("calInfo").textContent = S.offset ? "Corrección aplicada
 function applyTheme() {
   var r = document.documentElement;
   if (S.theme === "system") r.removeAttribute("data-theme"); else r.setAttribute("data-theme", S.theme);
+  var dark = S.theme === "dark" || (S.theme === "system" && window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches);
+  var meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.content = dark ? "#0d131b" : "#eef1f4";
+  if (isNative) { var SB = plugin("SystemBars"); if (SB) SB.setStyle({ style: dark ? "DARK" : "LIGHT" }).catch(function () {}); }
   if (currentView === "chart") drawChart();
 }
 document.querySelectorAll("[data-theme-opt]").forEach(function (b) {

@@ -14,14 +14,13 @@
   <main class="view view-measure" id="view-measure" data-view="measure">
     <div class="idle-art" aria-hidden="true">
       <svg viewBox="0 0 400 270" preserveAspectRatio="xMidYMax meet">
-        <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0b1220"/><stop offset="1" stop-color="#1a2638"/></linearGradient></defs>
                 <g fill="none" stroke-width="2" stroke-linecap="round" opacity=".55">
           <path d="M92 250 A108 96 0 0 1 308 250" stroke="#4a86e8"/>
           <path d="M64 250 A136 150 0 0 1 336 250" stroke="#9b7fd0"/>
           <path d="M40 250 A160 196 0 0 1 360 250" stroke="#ff9447"/>
         </g>
-        <path d="M24 250V214h44v-28h52v18h40v46z" fill="#0b1220" opacity=".9"/>
-        <path d="M-400 250h1200" stroke="#2b3a52" stroke-width="2"/>
+        <path class="sil" d="M24 250V214h44v-28h52v18h40v46z"/>
+        <path class="hor" d="M-400 250h1200" stroke-width="2"/>
         <circle cx="300" cy="96" r="9" fill="#ff9447"/>
       </svg>
     </div>
@@ -30,7 +29,7 @@
     <div class="tapzone" id="tapzone" hidden></div>
 
     <div class="hud-top">
-      <canvas id="tape" class="tape" aria-hidden="true"></canvas>
+      <canvas id="tape" class="tape" aria-hidden="true" hidden></canvas>
       <div class="chips">
         <span class="chip" id="chipStab"><i></i><span>Esperando sensores</span></span>
         <span class="chip warn" id="chipRef" hidden><i></i><span>Sin norte magnético</span></span>
@@ -236,6 +235,14 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7"/></svg>
         Usar GPS</button></div>
       <p class="hint" id="gpsInfo"></p>
+      <div class="gps-msg" id="gpsMsg" hidden role="status">
+        <p id="gpsMsgText"></p>
+        <div class="actions">
+          <button class="btn" id="btnLocSettings" type="button" hidden>Abrir ajustes de ubicación</button>
+          <button class="btn" id="btnGpsRetry" type="button" hidden>Reintentar</button>
+          <button class="btn" id="btnGpsCancel" type="button" hidden>Cancelar</button>
+        </div>
+      </div>
       <label class="field" for="inLat"><span>Latitud</span>
         <span class="input-unit"><input id="inLat" type="number" step="0.01" inputmode="decimal"><i>°</i></span>
       </label>
@@ -246,7 +253,8 @@
     </div>
 
     <div class="group" id="corrGroup">
-      <h3>Punto de estudio</h3>
+      <div class="group-head"><h3>Punto de estudio</h3>
+        <button class="help-btn" id="btnCorrHelp" type="button" aria-label="Cómo funciona la medida desde otro punto">?</button></div>
       <label class="field switch" for="inCorrOn"><span>Medir desde otro punto <small>por ejemplo, desde el suelo bajo la pérgola</small></span>
         <input id="inCorrOn" type="checkbox" role="switch"></label>
       <div class="corr-body" id="corrBody" hidden>
@@ -339,6 +347,129 @@
     <ul class="projlist" id="projList"></ul>
   </section>
 
+
+  <div class="sheet-bg" id="helpBg" hidden></div>
+  <section class="sheet help" id="helpSheet" hidden aria-labelledby="helpTitle" role="dialog">
+    <div class="sheet-grip"></div>
+    <header class="sheet-head"><h3 id="helpTitle">Medir desde otro punto</h3><button class="btn" id="helpClose" type="button">Cerrar</button></header>
+
+    <div class="help-step" data-step="0">
+      <svg class="help-fig" viewBox="0 0 360 226" aria-hidden="true">
+        <path class="ground" d="M8 190H352"/>
+          <rect class="bld" x="262" y="48" width="74" height="142"/>
+          <path class="bld-l" d="M262 70h74M262 100h74M262 130h74M262 160h74"/>
+          <path class="perg" d="M28 98L150 126"/><path class="post" d="M40 101V190M144 125V190"/>
+        <path class="ref" d="M150 126H262M150 176H262"/>
+        <path class="sight-m draw" style="--d:.2s" d="M150 176L262 48"/>
+        <path class="sight-p draw" style="--d:.9s" d="M150 126L262 48"/>
+        <rect class="phone" x="143" y="168" width="14" height="22" rx="3"/>
+        <circle class="pt-p pop" style="--d:.9s" cx="150" cy="126" r="6"/>
+        <text class="lab-m fade" style="--d:.5s" x="168" y="168">medido desde el móvil</text>
+        <text class="lab-p fade" style="--d:1.2s" x="166" y="118">lo que interesa</text>
+        <text class="lab fade" style="--d:1.2s" x="62" y="88">pérgola</text>
+        <text class="lab" x="299" y="40" text-anchor="middle">obstáculo</text>
+      </svg>
+      <h4>Por qué hace falta</h4>
+      <p>Las sombras importan en el punto de estudio, por ejemplo el borde inferior de la pérgola. Si no puede subir, mida desde el suelo: desde ahí el obstáculo se ve <b>más alto</b> de lo que se ve desde la pérgola. La app corrige esa diferencia si le da dos datos: el desnivel y la distancia.</p>
+    </div>
+
+    <div class="help-step" data-step="1" hidden>
+      <svg class="help-fig" viewBox="0 0 360 226" aria-hidden="true">
+        <path class="ground" d="M8 190H352"/>
+          <rect class="bld" x="262" y="48" width="74" height="142"/>
+          <path class="bld-l" d="M262 70h74M262 100h74M262 130h74M262 160h74"/>
+          <path class="perg" d="M28 98L150 126"/><path class="post" d="M40 101V190M144 125V190"/>
+        <rect class="phone" x="143" y="168" width="14" height="22" rx="3"/>
+        <circle class="pt-p" cx="150" cy="126" r="6"/>
+        <path class="dim draw" style="--d:.2s" d="M118 172V130"/>
+        <path class="dim-cap" d="M110 176h16M110 126h16"/>
+        <text class="lab-dim fade" style="--d:.8s" x="104" y="155" text-anchor="end">desnivel</text>
+        <text class="lab-dim-v fade" style="--d:.8s" x="104" y="170" text-anchor="end">+2,5 m</text>
+      </svg>
+      <h4>1. El desnivel</h4>
+      <p>Es la altura entre el móvil y el punto de estudio, medida con una cinta. Póngalo en <b>positivo</b> si el punto de estudio está más alto que el móvil, que es lo normal al medir desde el suelo.</p>
+    </div>
+
+    <div class="help-step" data-step="2" hidden>
+      <svg class="help-fig" viewBox="0 0 360 226" aria-hidden="true">
+        <path class="ground" d="M8 190H352"/>
+          <rect class="bld" x="262" y="48" width="74" height="142"/>
+          <path class="bld-l" d="M262 70h74M262 100h74M262 130h74M262 160h74"/>
+          <path class="perg" d="M28 98L150 126"/><path class="post" d="M40 101V190M144 125V190"/>
+        <rect class="phone" x="143" y="168" width="14" height="22" rx="3"/>
+        <circle class="pt-p" cx="150" cy="126" r="6"/>
+        <path class="dim draw" style="--d:.2s" d="M154 202H258"/>
+        <path class="dim-cap" d="M150 196v12M262 196v12"/>
+        <text class="lab-dim fade" style="--d:.8s" x="206" y="219" text-anchor="middle">distancia horizontal</text>
+      </svg>
+      <h4>2. La distancia a los obstáculos</h4>
+      <p>Es la distancia <b>horizontal</b> desde el móvil hasta el obstáculo, con cinta o medidor láser. Hay dos formas de darla:</p>
+      <ul>
+        <li><b>Medida en cada punto:</b> la escribe junto a cada punto en la pestaña Puntos. Sirve para cualquier obstáculo.</li>
+        <li><b>Fachada recta:</b> mide una sola distancia y la app calcula las demás (siguiente paso).</li>
+      </ul>
+    </div>
+
+    <div class="help-step" data-step="3" hidden>
+      <svg class="help-fig" viewBox="0 0 360 226" aria-hidden="true">
+        <path class="wall" d="M20 34H340"/>
+        <text class="lab" x="30" y="24">fachada (vista desde arriba)</text>
+        <path class="dim draw" style="--d:.2s" d="M180 176V40"/>
+        <text class="lab-dim fade" style="--d:.6s" x="172" y="112" text-anchor="end">D</text>
+        <path class="sight-p draw" style="--d:.9s" d="M180 176L292 40"/>
+        <text class="lab-p fade" style="--d:1.3s" x="246" y="120">d = D / cos θ</text>
+        <path class="ang draw" style="--d:1.2s" d="M180 136A40 40 0 0 0 205 145"/>
+        <text class="lab fade" style="--d:1.3s" x="195" y="128">θ</text>
+        <rect class="phone" x="173" y="170" width="14" height="22" rx="3"/>
+        <circle class="pt-p pop" style="--d:1.2s" cx="292" cy="40" r="5"/>
+      </svg>
+      <h4>3. Fachada recta</h4>
+      <p>Si el obstáculo es una pared recta, basta con medir la distancia <b>perpendicular D</b> hasta ella. Para la dirección, apunte con el móvil en perpendicular a la fachada y pulse <b>Tomar la dirección del visor</b>. La app calcula la distancia a cualquier otro punto de la pared según el ángulo.</p>
+    </div>
+
+    <div class="help-step" data-step="4" hidden>
+      <svg class="help-fig" viewBox="0 0 360 226" aria-hidden="true">
+        <path class="ground" d="M8 190H352"/>
+          <rect class="bld" x="262" y="48" width="74" height="142"/>
+          <path class="bld-l" d="M262 70h74M262 100h74M262 130h74M262 160h74"/>
+          <path class="perg" d="M28 98L150 126"/><path class="post" d="M40 101V190M144 125V190"/>
+        <rect class="phone" x="83" y="168" width="14" height="22" rx="3"/>
+        <circle class="pt-p" cx="150" cy="126" r="6"/>
+        <path class="ref" d="M150 126V190"/>
+        <path class="dim draw" style="--d:.2s" d="M94 202H146"/>
+        <path class="dim-cap" d="M90 196v12M150 196v12"/>
+        <text class="lab-dim fade" style="--d:.7s" x="120" y="219" text-anchor="middle">desplazamiento</text>
+      </svg>
+      <h4>4. Desplazamiento horizontal (opcional)</h4>
+      <p>Solo si el móvil no está justo debajo del punto de estudio. Indique cuántos metros hay en horizontal y hacia qué azimut está el punto de estudio visto desde el móvil (0° = sur, este negativo). Si mide justo debajo, déjelo en 0.</p>
+    </div>
+
+    <div class="help-step" data-step="5" hidden>
+      <svg class="help-fig" viewBox="0 0 360 226" aria-hidden="true">
+        <path class="ground" d="M8 190H352"/>
+          <rect class="bld" x="262" y="48" width="74" height="142"/>
+          <path class="bld-l" d="M262 70h74M262 100h74M262 130h74M262 160h74"/>
+          <path class="perg" d="M28 98L150 126"/><path class="post" d="M40 101V190M144 125V190"/>
+        <path class="ref" d="M150 126H262M150 176H262"/>
+        <path class="sight-m" d="M150 176L262 48"/>
+        <path class="sight-p draw" style="--d:.3s" d="M150 126L262 48"/>
+        <path class="ang-m" d="M190 176A40 40 0 0 0 176 146"/>
+        <path class="ang draw" style="--d:.8s" d="M190 126A40 40 0 0 0 183 103"/>
+        <text class="lab-m" x="196" y="166">medido</text>
+        <text class="lab-p fade" style="--d:1s" x="196" y="118">corregido</text>
+        <rect class="phone" x="143" y="168" width="14" height="22" rx="3"/>
+        <circle class="pt-p pop" style="--d:.3s" cx="150" cy="126" r="6"/>
+      </svg>
+      <h4>Resultado</h4>
+      <p>Usted mide como siempre desde el móvil y la app recalcula cada punto como se vería desde el punto de estudio. En este ejemplo, con 2,5 m de desnivel y la fachada a 10 m, la cornisa pasa de <b>46°</b> a <b>39°</b>. Los valores corregidos aparecen en la lista de puntos y son los que usan el diagrama, el cálculo del IDAE, PVGIS y el informe.</p>
+    </div>
+
+    <footer class="help-nav">
+      <button class="btn" id="helpPrev" type="button">Anterior</button>
+      <div class="dots" id="helpDots"></div>
+      <button class="btn primary" id="helpNext" type="button">Siguiente</button>
+    </footer>
+  </section>
   <div class="lightbox" id="lightbox" hidden>
     <img id="lbImg" alt="">
     <p id="lbCap"></p>

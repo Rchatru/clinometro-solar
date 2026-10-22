@@ -1,6 +1,7 @@
 package io.github.rchatru.clinometrosolar;
 
 import android.content.Context;
+import android.content.Intent;
 import android.media.AudioManager;
 import android.os.Bundle;
 import android.view.KeyEvent;
@@ -13,6 +14,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(MagnetometerPlugin.class);
+        registerPlugin(DevicePlugin.class);
         super.onCreate(savedInstanceState);
         // La pantalla no se apaga mientras se mide.
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -38,6 +40,12 @@ public class MainActivity extends BridgeActivity {
             }
         });
         return true;
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == DevicePlugin.REQUEST_LOCATION_ON) DevicePlugin.onResolution(resultCode);
     }
 
     @Override
