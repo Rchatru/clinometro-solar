@@ -344,6 +344,15 @@ with sync_playwright() as pw:
         check("sin errores de consola en todo el recorrido", not pg.errs, pg.errs)
         ctx.close()
 
+        # ---------- 10a. Seguir el móvil sin haber empezado a medir ----------
+        ctx3, pg3 = newpage()
+        pg3.click("[data-tab=chart]"); pg3.click("#btn3d"); pg3.wait_for_timeout(1200); pg3.click("#v3dIn"); pg3.wait_for_timeout(200)
+        check("3D: botón seguir visible sin haber medido", pg3.is_visible("#v3dFollow"))
+        pg3.evaluate(SENS); pg3.click("#v3dFollow"); pg3.wait_for_timeout(1200)
+        check("3D: seguir el móvil enciende los sensores", pg3.get_attribute("#v3dFollow", "aria-pressed") == "true", pg3.inner_text("#v3dHint"))
+        check("3D: sin errores al activar los sensores", not pg3.errs, pg3.errs)
+        ctx3.close()
+
         # ---------- 10b. El GPS automático no pisa la ubicación del mapa ----------
         st = {"projects": [dict(page_map_proj)], "currentId": page_map_proj["id"], "settings": {"avg": 1000, "delay": 0, "tap": False, "vol": True, "theme": "system", "offset": 0, "chartMode": "simple", "compareId": ""}}
         ctx2 = br.new_context(viewport={"width": 400, "height": 860}, permissions=["geolocation"], geolocation={"latitude": 28.75, "longitude": -17.75, "accuracy": 10})

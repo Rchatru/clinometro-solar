@@ -229,7 +229,20 @@ function bindOnce() {
   $("v3dClose").addEventListener("click", close);
   $("v3dOut").addEventListener("click", function () { setInside(false); });
   $("v3dIn").addEventListener("click", function () { setInside(true); });
-  $("v3dFollow").addEventListener("click", function () { st.follow = !st.follow; this.setAttribute("aria-pressed", String(st.follow)); hint(); needs = true; });
+  $("v3dFollow").addEventListener("click", async function () {
+    var btn = this;
+    if (!st.follow && !(ctx.sensors && ctx.sensors())) {
+      /* los sensores aún no están encendidos: se activan aquí y se espera a la primera lectura */
+      btn.disabled = true; hint("Activando los sensores del móvil…");
+      var ok = ctx.enableSensors ? await ctx.enableSensors() : false, t0 = performance.now();
+      while (ok && !ctx.sensors() && performance.now() - t0 < 3000) await new Promise(function (r) { setTimeout(r, 100); });
+      btn.disabled = false;
+      if (!ok || !ctx.sensors()) { hint(ok ? "El móvil no envía datos de orientación" : "No se ha concedido el acceso a los sensores"); return; }
+      if (!open || !st.inside) return;
+    }
+    st.follow = !st.follow; btn.setAttribute("aria-pressed", String(st.follow)); hint(); needs = true;
+    lastWarn = 0;
+  });
   $("v3dDay").addEventListener("input", function () { st.day = +this.value; R.buildPath(); R.updateSun(); readouts(); needs = true; });
   $("v3dHour").addEventListener("input", function () { st.hour = +this.value; R.updateSun(); readouts(); needs = true; });
   document.querySelectorAll(".v3d-presets button").forEach(function (b) {
@@ -257,21 +270,26 @@ function bindOnce() {
   if (window.matchMedia) matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () { if (open) { R.colors(); R.buildPath(); R.updateSun(); needs = true; } });
 }
 var hintTimer = 0;
-function hint() {
+function hint(text) {
   var h = $("v3dHint");
-  h.textContent = !st.inside ? "Arrastre para girar · pellizque para acercar" : st.follow ? "Mueva el móvil para mirar · pellizque para acercar" : "Arrastre para mirar · pellizque para acercar";
+  h.textContent = text || (!st.inside ? "Arrastre para girar · pellizque para acercar" : st.follow ? "Mueva el móvil para mirar · pellizque para acercar" : "Arrastre para mirar · pellizque para acercar");
   h.classList.remove("gone"); clearTimeout(hintTimer); hintTimer = setTimeout(hideHint, 3500);
 }
 function hideHint() { clearTimeout(hintTimer); $("v3dHint").classList.add("gone"); }
 function setInside(v) {
   st.inside = v;
   $("v3dOut").setAttribute("aria-pressed", String(!v)); $("v3dIn").setAttribute("aria-pressed", String(v));
-  $("v3dFollow").hidden = !(v && ctx.sensors && ctx.sensors());
+  $("v3dFollow").hidden = !(v && typeof DeviceOrientationEvent !== "undefined");
   if (!v) { st.follow = false; $("v3dFollow").setAttribute("aria-pressed", "false"); }
   hint(); needs = true;
 }
+/* Mientras se sigue el móvil, se avisa de vez en cuando si la brújula no es fiable */
+var lastWarn = 0;
 function loop() {
   if (!open) return;
+  if (st.inside && st.follow && ctx.compassWarning && performance.now() - lastWarn > 8000) {
+    var w = ctx.compassWarning(); if (w) { hint(w); lastWarn = performance.now(); }
+  }
   if (needs || (st.inside && st.follow)) { R.render(); needs = false; }
   raf = requestAnimationFrame(loop);
 }

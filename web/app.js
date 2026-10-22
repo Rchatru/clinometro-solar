@@ -4,7 +4,7 @@
 (function () {
 "use strict";
 
-var VERSION = "2.0.0-beta14";
+var VERSION = "2.0.0-beta15";
 var D2R = Math.PI / 180, R2D = 180 / Math.PI;
 var $ = function (id) { return document.getElementById(id); };
 var Cap = window.Capacitor;
@@ -258,8 +258,15 @@ function magDeviation() {
   var F = wmmField(proj().lat, proj().lon); if (!F) return null;
   return (sens.mag.total - F) / F;
 }
+/* Aviso sobre la brújula: interferencia (campo medido lejos del esperado) o calibración baja */
+function compassWarning() {
+  var dev = magDeviation();
+  if (dev != null && Math.abs(dev) > 0.15) return "Interferencia magnética " + sgn(dev * 100, 0) + " %";
+  if (sens.magAcc != null && sens.magAcc <= 1) return "Calibre la brújula: mueva el móvil en forma de 8";
+  return null;
+}
 function startMagnetometer() {
-  if (!isNative) return;
+  if (!isNative || startMagnetometer.done) return; startMagnetometer.done = true;
   var M = plugin("Magnetometro"); if (!M) return;
   try {
     M.addListener("field", function (d) { sens.mag = { total: d.total, t: performance.now() }; sens.magAcc = d.accuracy; });
@@ -299,11 +306,24 @@ function average(ms) {
   var head = norm360(Math.atan2(sx, sy) * R2D + proj().decl);
   return { elev: me + S.offset, raw: me, sd: sd, head: head, az: norm180(head - 180) };
 }
+var sensOn = false;
 function startSensors() {
+  if (sensOn) return; sensOn = true;
+  startMagnetometer();
   if ("ondeviceorientationabsolute" in window) window.addEventListener("deviceorientationabsolute", function (e) { onOrient(e, true); });
   window.addEventListener("deviceorientation", function (e) { if (!sens.absolute || e.webkitCompassHeading != null) onOrient(e, !!e.absolute); });
 }
 
+/* Enciende los sensores de orientación sin abrir la cámara (p. ej. para seguir el móvil en la vista 3D) */
+async function enableSensors() {
+  if (sensOn) return true;
+  try {
+    if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
+      if ((await DeviceOrientationEvent.requestPermission()) !== "granted") return false;
+    }
+  } catch (e) { return false; }
+  startSensors(); return true;
+}
 async function start() {
   var msg = [];
   $("btnStart").disabled = true;
@@ -313,7 +333,7 @@ async function start() {
       if (p !== "granted") msg.push("No se ha concedido el acceso a los sensores de movimiento.");
     }
   } catch (e) { msg.push("No se ha podido pedir permiso para los sensores."); }
-  startSensors(); startMagnetometer();
+  startSensors();
   if (!window.isSecureContext) msg.push("La página debe abrirse con https:// para usar la cámara y los sensores.");
   var camErr = await openCamera();
   if (camErr) msg.push("No se ha podido abrir la cámara (" + camErr + "). Las lecturas funcionan igual apuntando con la parte trasera del móvil.");
@@ -375,10 +395,8 @@ function loop(t) {
   chip.lastChild.textContent = stable ? "Lectura estable" : "Moviéndose ±" + (full ? full.sd : 0).toFixed(1).replace(".", ",") + "°";
   $("btnSave").classList.toggle("stable", !!stable);
   $("chipRef").hidden = sens.absolute;
-  var dev = magDeviation(), mchip = $("chipMag");
-  if (dev != null && Math.abs(dev) > 0.15) { mchip.hidden = false; mchip.lastChild.textContent = "Interferencia magnética " + sgn(dev * 100, 0) + " %"; }
-  else if (sens.magAcc != null && sens.magAcc <= 1) { mchip.hidden = false; mchip.lastChild.textContent = "Calibre la brújula: mueva el móvil en forma de 8"; }
-  else mchip.hidden = true;
+  var cw = compassWarning(), mchip = $("chipMag");
+  mchip.hidden = !cw; if (cw) mchip.lastChild.textContent = cw;
   $("tape").hidden = false; drawTape(a.head);
 }
 
@@ -906,7 +924,8 @@ $("btn3d").addEventListener("click", async function () {
     if (query) { var y0 = new Date(query.getFullYear(), 0, 0); day = Math.floor((query - y0) / 86400000); hour = 12 + solarAt(query, p.lat, p.lon).H / 15; }
     Vista3D.open({
       lat: p.lat, lon: p.lon, points: ef, prof: shadeProfile(p), wallProf: IDAE.profileFn(ef), terr: hzOn(p) ? terrFn(p) : null, day: day, hour: hour,
-      sensors: function () { if (!sens.started) return null; var a = average(150); return a ? { head: a.head, elev: a.elev } : null; },
+      sensors: function () { if (!sens.gotData) return null; var a = average(150); return a ? { head: a.head, elev: a.elev } : null; },
+      enableSensors: enableSensors, compassWarning: compassWarning,
       onClose: function () { layerClose("v3d"); }
     });
     layerOpen("v3d", function () { Vista3D.close(); });
