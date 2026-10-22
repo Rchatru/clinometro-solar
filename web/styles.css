@@ -467,7 +467,7 @@ select{font-family:var(--f-ui)}
 .v3d-seg{background:var(--surface)}
 .v3d-follow{position:absolute;right:12px;top:calc(var(--sat) + 62px);padding:8px 12px;font-size:14px}
 .v3d-follow[aria-pressed="true"]{background:var(--sun);color:#1b0f05;border-color:transparent}
-.v3d-hint{position:absolute;left:12px;top:calc(var(--sat) + 66px);margin:0;font-size:12.5px;color:var(--ink-2);background:var(--surface);padding:4px 9px;border-radius:999px;border:1px solid var(--line)}
+.v3d-hint{position:absolute;left:50%;transform:translateX(-50%);bottom:12px;white-space:nowrap;transition:opacity .4s;pointer-events:none;margin:0;font-size:12.5px;color:var(--ink-2);background:var(--surface);padding:4px 9px;border-radius:999px;border:1px solid var(--line)}
 .v3d-panel{flex:none;padding:14px 16px calc(var(--sab) + 14px);background:var(--tab-bg);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
   border-top:1px solid var(--line);display:flex;flex-direction:column;gap:6px;border-radius:20px 20px 0 0}
 .v3d-panel>*{max-width:640px;width:100%;margin-inline:auto}
@@ -482,3 +482,4 @@ select{font-family:var(--f-ui)}
 .v3d-row .btn{padding:9px 14px;font-size:14px}
 .v3d-sun{font-size:13px;color:var(--ink-2)}
 .v3d-state .st{display:inline-block;padding:3px 10px;border-radius:999px;font-weight:600;font-size:13px}
+.v3d-hint.gone{opacity:0}
