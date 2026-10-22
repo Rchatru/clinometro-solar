@@ -9,7 +9,7 @@ var $ = function (id) { return document.getElementById(id); };
 var MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 var ctx = null, R = null, open = false, needs = true, raf = 0, playing = 0;
 var st = { day: 355, hour: 10, inside: false, follow: false };
-var cam = { az: 205, el: 26, zoomU: 1, yaw: 180, pitch: 18, hfov: 100 };   /* hfov: campo de visión horizontal desde el centro */
+var cam = { az: 205, el: 26, zoomU: 1, yaw: 180, pitch: 12, hfov: 100 };   /* hfov: campo de visión horizontal desde el centro */
 
 function css(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
 function norm180(a) { a = ((a % 360) + 360) % 360; return a > 180 ? a - 360 : a; }
@@ -124,12 +124,15 @@ function init() {
   }
   function placeCamera() {
     if (st.inside) {
-      if (st.follow && ctx.sensors) { var s = ctx.sensors(); if (s) { cam.yaw = s.head; cam.pitch = Math.max(-10, Math.min(88, s.elev)); } }
+      if (st.follow && ctx.sensors) { var s = ctx.sensors(); if (s) { cam.yaw = s.head; cam.pitch = Math.max(-8, Math.min(88, s.elev)); } }
       /* el campo de visión se fija en horizontal para que no dependa de la forma de la pantalla */
       var asp = camera.aspect || 1;
       camera.fov = Math.min(140, 2 * Math.atan(Math.tan(cam.hfov / 2 * D2R) / asp) * R2D); camera.position.set(0, 0.05, 0);
       camera.lookAt(sph(cam.yaw, cam.pitch, 1).add(new T.Vector3(0, 0.05, 0)));
-      camera.clearViewOffset(); camera.zoom = 1;
+      /* la dirección de la mirada se dibuja más abajo que el centro (a unos tres cuartos de la altura):
+         así el horizonte queda bajo y el cielo ocupa la mayor parte, sin tener que levantar el móvil */
+      var cw = canvas.clientWidth || 1, chh = canvas.clientHeight || 1;
+      camera.setViewOffset(cw, chh, 0, -0.24 * chh, cw, chh); camera.zoom = 1;
     } else {
       camera.fov = 40; var q = sph(cam.az, cam.el, 3.4); camera.position.set(q.x, q.y, q.z); camera.lookAt(0, 0.35, 0);
       frameDome();
@@ -216,7 +219,7 @@ function bindOnce() {
       return;
     }
     var dx = e.clientX - p.x, dy = e.clientY - p.y; ptrs[e.pointerId] = { x: e.clientX, y: e.clientY };
-    if (st.inside) { if (st.follow) return; var k2 = cam.hfov / (v.clientWidth || 400); cam.yaw -= dx * k2; cam.pitch = Math.max(-10, Math.min(88, cam.pitch + dy * k2)); }
+    if (st.inside) { if (st.follow) return; var k2 = cam.hfov / (v.clientWidth || 400); cam.yaw -= dx * k2; cam.pitch = Math.max(-8, Math.min(88, cam.pitch + dy * k2)); }
     else { cam.az -= dx * 0.35; cam.el = Math.max(3, Math.min(88, cam.el + dy * 0.3)); }
     needs = true;
   });
