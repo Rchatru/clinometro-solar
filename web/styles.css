@@ -526,3 +526,6 @@ select{font-family:var(--f-ui)}
 .basis b{color:var(--ink);font-weight:600}
 .v3d-key{display:inline-flex;align-items:center;gap:6px;margin-left:auto;font-family:var(--f-ui);font-size:12.5px}
 .v3d-key i{width:14px;height:10px;border-radius:3px;background:color-mix(in srgb,var(--terrain) 45%,transparent);border:1.5px dashed var(--terrain)}
+.help-fig .terr{fill:none;stroke:var(--terrain);stroke-width:2;stroke-dasharray:6 4}
+.help-fig .terr-fill{fill:color-mix(in srgb,var(--terrain) 24%,transparent);stroke:none}
+.help-fig .lab-terr{fill:var(--terrain);font-weight:600}

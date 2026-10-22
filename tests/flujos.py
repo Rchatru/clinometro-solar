@@ -275,7 +275,7 @@ with sync_playwright() as pw:
         check("guía de medición se abre", pg.is_visible('.sheet.help[data-help="measure"]'))
         pg.click('.sheet.help[data-help="measure"] .help-close')
         pg.click("[data-tab=chart]"); pg.click("#lossTitle [data-open-help]"); pg.wait_for_timeout(200)
-        check("guía del diagrama abre en el paso del IDAE", pg.evaluate("[...document.querySelectorAll('.sheet.help[data-help=chart] .dots i')].findIndex(i=>i.classList.contains('on'))") == 3)
+        check("guía del diagrama abre en el paso del IDAE", "porciones del IDAE" in pg.inner_text('.sheet.help[data-help=chart] .help-step:not([hidden]) h4') and pg.evaluate("[...document.querySelectorAll('.sheet.help[data-help=chart] .dots i')].findIndex(i=>i.classList.contains('on'))") == 4)
         pg.click('.sheet.help[data-help="chart"] .help-close')
 
         # ---------- 9e0. Horizonte de PVGIS ----------
