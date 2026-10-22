@@ -113,10 +113,14 @@
         <span>Ver en 3D</span></button>
       <canvas id="chart" aria-label="Silueta de los obstáculos sobre las trayectorias solares"></canvas>
     </div>
+    <div class="hz-bar">
+      <button class="hz-toggle" id="btnHz" type="button" role="switch" aria-checked="true"><i></i>Incluir horizonte PVGIS</button>
+      <p class="hz-info" id="hzInfo"></p>
+    </div>
     <div class="legend">
       <div class="ramp"><span>dic</span><i></i><span>jun</span></div>
       <div class="keys" id="chartKeys"></div>
-      <p>Trayectoria del sol el día 21 de cada mes, de diciembre (azul) a junio (naranja). La zona sombreada es la silueta medida: donde una trayectoria pasa por dentro, el sol queda tapado.</p>
+      <p>Trayectoria del sol el día 21 de cada mes, de diciembre (azul) a junio (naranja). La zona sombreada es la silueta medida y la discontinua, el relieve del terreno según PVGIS: donde una trayectoria pasa por dentro, el sol queda tapado.</p>
       <p id="noteIdae" hidden>Porciones A1…D14 del pliego del IDAE, calculadas para la latitud del proyecto. El color indica la fracción de cada porción que tapa el obstáculo.</p>
       <p id="noteFull" hidden>Las horas son solares: a las 12 h el sol está al sur. En Canarias la hora oficial va unos 70 min por delante en invierno y 130 min en verano.</p>
     </div>
@@ -152,6 +156,7 @@
         <div class="loss-big"><b id="lossVal">–</b><small>%</small></div>
       </div>
       <p class="pill" id="lossPill"></p>
+      <p class="basis" id="lossBasis"></p>
       <div class="loss-inputs">
         <label class="field" for="inBeta"><span>Inclinación de los módulos <small>β, 0° = horizontal</small></span>
           <span class="input-unit"><input id="inBeta" type="number" step="1" min="0" max="90" inputmode="decimal"><i>°</i></span></label>
@@ -183,16 +188,16 @@
         <label class="field" for="inSysLoss"><span>Pérdidas del sistema <small>cableado, inversor, suciedad…</small></span>
           <span class="input-unit"><input id="inSysLoss" type="number" step="1" min="0" max="50" inputmode="decimal"><i>%</i></span></label>
       </div>
-      <p class="hint">Usa la ubicación del proyecto y la inclinación y orientación de los módulos del apartado anterior. Es la media de 2015 a 2024 con datos de radiación de satélite. PVGIS ya tiene en cuenta el relieve lejano; la app le añade los obstáculos medidos. Necesita conexión a internet.</p>
+      <p class="hint">Usa la ubicación del proyecto y la inclinación y orientación de los módulos del apartado anterior. Es la media de 2015 a 2024 con datos de radiación de satélite. El horizonte es el mismo del diagrama: los obstáculos medidos y, si está activado, el relieve de PVGIS. Necesita conexión a internet.</p>
       <div class="actions"><button class="btn primary" id="btnPvgis" type="button">Calcular con PVGIS</button></div>
       <div class="pv-res" id="pvRes" hidden>
         <div class="pv-nums">
-          <div><span>Sin obstáculos</span><b id="pvBase">–</b><small>kWh/año</small></div>
-          <div><span>Con obstáculos</span><b id="pvShaded">–</b><small>kWh/año</small></div>
+          <div><span>Sin sombras</span><b id="pvBase">–</b><small>kWh/año</small></div>
+          <div><span>Con sombras</span><b id="pvShaded">–</b><small>kWh/año</small></div>
           <div class="pv-loss"><span>Pérdida</span><b id="pvLoss">–</b><small id="pvLossPct"></small></div>
         </div>
         <canvas id="pvChart" aria-label="Producción mensual con y sin obstáculos"></canvas>
-        <div class="cal-keys"><span><i class="k-pvb"></i>Sin obstáculos</span><span><i class="k-pvs"></i>Con obstáculos</span></div>
+        <div class="cal-keys"><span><i class="k-pvb"></i>Sin sombras</span><span><i class="k-pvs"></i>Con sombras</span></div>
         <p class="hint" id="pvMeta"></p>
       </div>
     </section>
@@ -248,7 +253,10 @@
       <h3>Ubicación del proyecto</h3>
       <div class="actions"><button class="btn primary" id="btnGps" type="button">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7"/></svg>
-        Usar GPS</button></div>
+        Usar GPS</button>
+        <button class="btn" id="btnMap" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4L3 6.5v13.5L9 17.5l6 2.5 6-2.5V4l-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></svg>
+        Elegir en el mapa</button></div>
       <p class="hint" id="gpsInfo"></p>
       <div class="gps-msg" id="gpsMsg" hidden role="status">
         <p id="gpsMsgText"></p>
@@ -796,7 +804,7 @@
     <p class="v3d-hint" id="v3dHint">Arrastre para girar · pellizque para acercar</p>
     </div>
     <div class="v3d-panel" id="v3dPanel">
-      <div class="v3d-state"><span class="st" id="v3dState"></span><span id="v3dRead"></span></div>
+      <div class="v3d-state"><span class="st" id="v3dState"></span><span id="v3dRead"></span><span class="v3d-key" id="v3dTerrKey" hidden><i></i>Relieve PVGIS</span></div>
       <label class="v3d-rng" for="v3dDay"><span>Día</span><b id="v3dDayLbl"></b></label>
       <input type="range" id="v3dDay" min="1" max="365" value="355">
       <div class="v3d-presets"><button type="button" data-d="355">21 dic</button><button type="button" data-d="80">21 mar</button><button type="button" data-d="172">21 jun</button><button type="button" data-d="266">23 sep</button><button type="button" data-d="today">Hoy</button></div>
@@ -806,6 +814,33 @@
         <button class="btn primary" id="v3dPlay" type="button">Reproducir el día</button>
         <span class="v3d-sun" id="v3dSunH"></span>
       </div>
+    </div>
+  </section>
+  <section class="mapv" id="mapv" hidden aria-label="Elegir la ubicación en el mapa">
+    <div class="map-stage">
+      <div id="mapEl"></div>
+      <svg class="map-pin" viewBox="0 0 40 52" aria-hidden="true"><path d="M20 50s16-17.5 16-29A16 16 0 0 0 4 21c0 11.5 16 29 16 29z"/><circle cx="20" cy="21" r="6"/></svg>
+      <header class="map-top">
+        <div class="map-bar">
+          <button class="btn v3d-close" id="mapBack" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Volver</button>
+          <div class="seg v3d-seg" role="group" aria-label="Capa del mapa">
+            <button type="button" id="mapStreet" aria-pressed="true">Callejero</button>
+            <button type="button" id="mapPhoto" aria-pressed="false">Ortofoto</button>
+          </div>
+        </div>
+        <form class="map-search" id="mapForm" role="search">
+          <input id="mapQ" type="search" enterkeyhint="search" autocomplete="off" placeholder="Buscar lugar o pegar coordenadas" aria-label="Buscar lugar o coordenadas">
+          <button class="btn" id="mapGo" type="submit" aria-label="Buscar">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></button>
+        </form>
+        <ul class="map-results" id="mapResults" hidden></ul>
+      </header>
+    </div>
+    <div class="v3d-panel map-panel">
+      <p class="map-coords"><span>Centro del mapa</span><b id="mapCoords"></b></p>
+      <p class="hint">Mueva el mapa hasta dejar el pin sobre el punto de estudio.</p>
+      <button class="btn primary" id="mapUse" type="button">Usar esta ubicación</button>
     </div>
   </section>
   <div class="lightbox" id="lightbox" hidden>

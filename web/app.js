@@ -4,7 +4,7 @@
 (function () {
 "use strict";
 
-var VERSION = "2.0.0-beta10";
+var VERSION = "2.0.0-beta11";
 var D2R = Math.PI / 180, R2D = 180 / Math.PI;
 var $ = function (id) { return document.getElementById(id); };
 var Cap = window.Capacitor;
@@ -121,6 +121,76 @@ function effPoints(p) {
     return o;
   });
 }
+/* ---------------- Horizonte del terreno (PVGIS) ----------------
+   PVGIS calcula el horizonte con un modelo digital del terreno: capta las montañas lejanas pero no los
+   obstáculos cercanos. Se guarda en el proyecto ({lat, lon, A: azimut desde el norte, h}) y, si está activado,
+   se combina con lo medido tomando en cada dirección el mayor de los dos. */
+function hzValid(p) { var z = p.hz; return !!(z && z.h && z.h.length > 3 && Math.abs(z.lat - p.lat) < 0.002 && Math.abs(z.lon - p.lon) < 0.002); }
+function hzOn(p) { return p.useHz !== false && hzValid(p); }
+function terrFn(p) {
+  var z = p.hz, n = z.A.length;
+  return function (az) {
+    var A = norm360(az + 180);
+    for (var i = 0; i < n; i++) {
+      var a0 = z.A[i], a1 = i + 1 < n ? z.A[i + 1] : z.A[0] + 360, h1 = i + 1 < n ? z.h[i + 1] : z.h[0];
+      if (A >= a0 && A <= a1) return z.h[i] + (h1 - z.h[i]) * (A - a0) / ((a1 - a0) || 1);
+    }
+    var aL = z.A[n - 1] - 360;                    /* antes del primer azimut */
+    return z.h[n - 1] + (z.h[0] - z.h[n - 1]) * (A - aL) / ((z.A[0] - aL) || 1);
+  };
+}
+/* Perfil con el que se calcula todo: lo medido y, si procede, el relieve */
+function shadeProfile(p) {
+  p = p || proj();
+  var m = IDAE.profileFn(effPoints(p)); if (!hzOn(p)) return m;
+  var t = terrFn(p); return function (az) { return Math.max(m(az), t(az)); };
+}
+function hasProfile(p) { return p.points.length > 0 || hzOn(p); }
+function basisText(p) { return p.points.length && hzOn(p) ? "medido + relieve PVGIS" : hzOn(p) ? "solo relieve PVGIS (sin puntos medidos)" : "solo lo medido"; }
+var hzState = {};                                 /* por proyecto: { loading, err } */
+async function ensureHorizon(p, force) {
+  if (p.useHz === false && !force) return;
+  if (hzValid(p) && !force) return;
+  var st = hzState[p.id] || (hzState[p.id] = {});
+  if (st.loading) return st.loading;
+  var lat = p.lat, lon = p.lon;
+  st.err = null; renderHz();
+  st.loading = (async function () {
+    try {
+      var hz = await pvgisGet("topography/horizon-profile", { latitude: lat, longitude: lon, angle_output_units: "Degrees" });
+      var hp = hz.horizon_profile || {}, A = hp.azimuth || [], H = hp.horizon_height || [];
+      if (A.length < 4 || A.length !== H.length) throw new Error("PVGIS no ha devuelto el horizonte.");
+      var pairs = A.map(function (a, i) { return [norm360(+a), Math.max(0, +H[i] || 0)]; }).sort(function (x, y) { return x[0] - y[0]; });
+      if (p.lat === lat && p.lon === lon) {
+        p.hz = { t: Date.now(), lat: lat, lon: lon, A: pairs.map(function (x) { return +x[0].toFixed(2); }), h: pairs.map(function (x) { return +x[1].toFixed(2); }) };
+        save();
+      }
+    } catch (e) { st.err = (e && e.message) || String(e); }
+    finally { st.loading = null; }
+    if (p.id === db.currentId && currentView === "chart") { renderLoss(); drawChart(); renderCalendar(); renderQuery(); renderPvgis(); }
+    renderHz();
+  })();
+  return st.loading;
+}
+function renderHz() {
+  var p = proj(), st = hzState[p.id] || {}, on = p.useHz !== false, b = $("btnHz"), info = $("hzInfo");
+  if (!b) return;
+  b.setAttribute("aria-checked", String(on));
+  if (!on) info.textContent = "Solo se usan los obstáculos medidos.";
+  else if (st.loading) info.textContent = "Descargando el relieve de PVGIS…";
+  else if (hzValid(p)) info.textContent = "Relieve del terreno según PVGIS, combinado con lo medido.";
+  else {
+    info.innerHTML = '<span></span> <button type="button" id="btnHzRetry">Reintentar</button>';
+    info.firstChild.textContent = (st.err ? "No se ha podido descargar el relieve de PVGIS" + (navigator.onLine === false ? " (sin conexión)" : "") : "Falta el relieve de PVGIS") + ". De momento se usa solo lo medido.";
+    $("btnHzRetry").addEventListener("click", function () { ensureHorizon(proj(), true); });
+  }
+}
+$("btnHz").addEventListener("click", function () {
+  var p = proj(); p.useHz = p.useHz === false; touch();
+  renderHz(); renderLoss(); drawChart(); renderCalendar(); renderQuery(); renderPvgis();
+  if (p.useHz) ensureHorizon(p);
+});
+
 function missingDist(p) { return corrActive(p) ? p.points.filter(function (q) { return !q.sky && distFor(p, q) == null; }).length : 0; }
 
 /* ---------------- Fotos (IndexedDB) ---------------- */
@@ -247,7 +317,7 @@ async function start() {
   if (!window.isSecureContext) msg.push("La página debe abrirse con https:// para usar la cámara y los sensores.");
   var camErr = await openCamera();
   if (camErr) msg.push("No se ha podido abrir la cámara (" + camErr + "). Las lecturas funcionan igual apuntando con la parte trasera del móvil.");
-  keepAwake();
+  keepAwake(); checkFar(proj());
   sens.started = true;
   $("btnSave").disabled = false; $("btnCal").disabled = false; $("btnSky").disabled = false;
   var t0 = performance.now();
@@ -363,7 +433,7 @@ function savePoint() {
   var p = proj();
   var pt = { id: uid(), az: +a.az.toFixed(1), head: +a.head.toFixed(1), elev: +a.elev.toFixed(1), sd: +a.sd.toFixed(2), note: "", t: Date.now(), abs: sens.absolute };
   var md = magDeviation(); if (md != null) pt.mag = +md.toFixed(3);
-  p.points.push(pt);
+  p.points.push(pt); checkFar(p);
   touch(); haptic();
   if (S.photos) capturePhoto(pt, p.points.length).then(function (b) {
     if (!b) return; return Photos.put(pt.id, b).then(function () { pt.photo = true; touch(); });
@@ -500,7 +570,7 @@ function show(v) {
   document.querySelectorAll("[data-view]").forEach(function (el) { el.hidden = el.dataset.view !== v; });
   document.querySelectorAll("[data-tab]").forEach(function (b) { if (b.dataset.tab === v) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
   $("app").classList.toggle("on-measure", v === "measure");
-  if (v === "chart") { fillCompare(); renderLoss(); drawChart(); renderCalendar(); renderQuery(); renderPvgis(); }
+  if (v === "chart") { fillCompare(); renderHz(); renderLoss(); drawChart(); renderCalendar(); renderQuery(); renderPvgis(); ensureHorizon(proj()); }
   if (v === "points") renderPoints();
   if (v === "settings") renderSettings();
 }
@@ -730,6 +800,18 @@ function drawChartOn(c, w, h, dpr, mode, onScreen) {
       else { g.fillStyle = color; g.fill(); }
     });
   }
+  /* relieve del terreno (PVGIS): relleno suave y línea discontinua, por debajo de lo medido */
+  var terrOn = hzOn(p), tf = terrOn ? terrFn(p) : null, terrC = css("--terrain");
+  function terrain(fillA) {
+    var tp = []; for (var a = azMin; a <= azMax; a += 1) tp.push([a, Math.max(0, tf(a))]);
+    if (fillA) {
+      g.beginPath(); g.moveTo(X(azMin), Y(0)); tp.forEach(function (q) { g.lineTo(X(q[0]), Y(q[1])); }); g.lineTo(X(azMax), Y(0)); g.closePath();
+      g.globalAlpha = fillA; g.fillStyle = terrC; g.fill(); g.globalAlpha = 1;
+    }
+    g.strokeStyle = terrC; g.lineWidth = 1.6; g.setLineDash([5, 3]);
+    g.beginPath(); tp.forEach(function (q, i) { i ? g.lineTo(X(q[0]), Y(q[1])) : g.moveTo(X(q[0]), Y(q[1])); }); g.stroke(); g.setLineDash([]);
+  }
+  if (terrOn) terrain(.22);
   silhouette(effPoints(p), ink, .16, false);
   var cmp = onScreen && S.compareId && db.projects.filter(function (x) { return x.id === S.compareId && x.id !== p.id; })[0];
   if (cmp) silhouette(effPoints(cmp), css("--winter"), .08, true);
@@ -747,7 +829,9 @@ function drawChartOn(c, w, h, dpr, mode, onScreen) {
       g.strokeStyle = ink2; g.globalAlpha = .55; g.lineWidth = 1; g.stroke(); g.globalAlpha = 1;
       var c = IDAE.center(id, p.lat);
       if (c[1] > 2) { g.font = "500 9.5px " + css("--f-mono"); g.textAlign = "center"; g.fillStyle = fmap[id] > .5 ? ink : ink2; g.fillText(id, X(c[0]), Y(c[1]) + 3); }
-    });    silhouette(effPoints(p), ink, 0, false);
+    });
+    if (terrOn) terrain(0);
+    silhouette(effPoints(p), ink, 0, false);
   }
   /* trayectorias */
   if (mode === "idae") { /* solo porciones */ }
@@ -780,7 +864,8 @@ function drawChartOn(c, w, h, dpr, mode, onScreen) {
   }
   if (!onScreen) return;
   /* claves */
-  var k = '<span><i style="background:' + ink + ';opacity:.6"></i>' + escapeHtml(p.name) + '</span>';
+  var k = p.points.length ? '<span><i style="background:' + ink + ';opacity:.6"></i>' + escapeHtml(p.name) + '</span>' : '';
+  if (terrOn) k += '<span><i class="k-terr"></i>Relieve (PVGIS)</span>';
   if (cmp) k += '<span><i style="background:' + css("--winter") + ';opacity:.6"></i>' + escapeHtml(cmp.name) + '</span>';
   $("chartKeys").innerHTML = k;
 }
@@ -820,7 +905,7 @@ $("btn3d").addEventListener("click", async function () {
     var p = proj(), ef = effPoints(p), day = null, hour = null;
     if (query) { var y0 = new Date(query.getFullYear(), 0, 0); day = Math.floor((query - y0) / 86400000); hour = 12 + solarAt(query, p.lat, p.lon).H / 15; }
     Vista3D.open({
-      lat: p.lat, lon: p.lon, points: ef, prof: IDAE.profileFn(ef), day: day, hour: hour,
+      lat: p.lat, lon: p.lon, points: ef, prof: shadeProfile(p), wallProf: IDAE.profileFn(ef), terr: hzOn(p) ? terrFn(p) : null, day: day, hour: hour,
       sensors: function () { if (!sens.started) return null; var a = average(150); return a ? { head: a.head, elev: a.elev } : null; },
       onClose: function () { layerClose("v3d"); }
     });
@@ -847,7 +932,7 @@ var query = null;                              /* { date } consultada por el usu
 
 /* Matriz mes × franja: -1 sol bajo el horizonte; 0…1 fracción en sombra */
 function calendarData(p) {
-  var prof = IDAE.profileFn(effPoints(p)), y = new Date().getFullYear(), cols = (CAL.h1 - CAL.h0) * 60 / CAL.step, out = [];
+  var prof = shadeProfile(p), y = new Date().getFullYear(), cols = (CAL.h1 - CAL.h0) * 60 / CAL.step, out = [];
   for (var m = 0; m < 12; m++) {
     var row = [];
     for (var c = 0; c < cols; c++) {
@@ -899,8 +984,8 @@ function drawCalendarOn(c, w, h, dpr, onScreen) {
 function renderCalendar() {
   var c = $("cal"), w = c.clientWidth; if (!w) return;
   var r = drawCalendarOn(c, w, c.clientHeight, window.devicePixelRatio || 1, true), p = proj();
-  $("calSummary").textContent = p.points.length ?
-    "En los días representados, el obstáculo tapa el sol " + fmt(r.shadeH, 1) + " h de " + fmt(r.sunH, 1) + " h de sol (" + fmt(100 * r.shadeH / Math.max(1, r.sunH), 0) + " %). Es tiempo de sol, no energía: una hora de invierno al amanecer pesa mucho menos que una de mediodía."
+  $("calSummary").textContent = hasProfile(p) ?
+    "En los días representados, " + (hzOn(p) ? "el horizonte" : "el obstáculo") + " tapa el sol " + fmt(r.shadeH, 1) + " h de " + fmt(r.sunH, 1) + " h de sol (" + fmt(100 * r.shadeH / Math.max(1, r.sunH), 0) + " %). Es tiempo de sol, no energía: una hora de invierno al amanecer pesa mucho menos que una de mediodía."
     : "Mida el perfil de obstáculos para ver en qué meses y horas hay sombra.";
 }
 $("cal").addEventListener("click", function (e) {
@@ -928,11 +1013,11 @@ $("btnNow").addEventListener("click", function () { var d = new Date(); d.setSec
 function renderQuery() {
   var out = $("queryRes");
   if (!query) { out.innerHTML = ""; return; }
-  var p = proj(), s = solarAt(query, p.lat, p.lon), h = IDAE.profileFn(effPoints(p))(s.az);
+  var p = proj(), s = solarAt(query, p.lat, p.lon), h = shadeProfile(p)(s.az);
   var when = query.toLocaleDateString("es-ES", { day: "numeric", month: "long" }) + " a las " + pad(query.getHours()) + ":" + pad(query.getMinutes());
   var st = s.el <= 0 ? '<span class="st night">Sol bajo el horizonte</span>' : s.el < h ? '<span class="st shade">En sombra</span>' : '<span class="st sun">Sol directo</span>';
   out.innerHTML = escapeHtml(when) + ": sol a <b>" + fmt(s.el, 1) + "°</b> de altura y <b>" + sgn(s.az, 0) + "°</b> de azimut" +
-    (s.el > 0 && h > 0 ? "; el obstáculo llega a <b>" + fmt(h, 1) + "°</b> en esa dirección" : "") + ".<br>" + st;
+    (s.el > 0 && h > 0 ? "; " + (hzOn(p) ? "el horizonte" : "el obstáculo") + " llega a <b>" + fmt(h, 1) + "°</b> en esa dirección" : "") + ".<br>" + st;
 }
 
 /* ---------------- Pérdidas por sombras (IDAE) ---------------- */
@@ -941,7 +1026,7 @@ function lossTable() {
   if (p.idaeTable && p.idaeTable !== "auto") for (var i = 0; i < IDAE.TABLES.length; i++) if (IDAE.TABLES[i].id === p.idaeTable) return IDAE.TABLES[i];
   return IDAE.pick(p.beta, p.alphaMod);
 }
-function lossResult() { var p = proj(); return IDAE.compute(effPoints(p), p.lat, lossTable()); }
+function lossResult() { var p = proj(); return IDAE.compute(shadeProfile(p), p.lat, lossTable()); }
 function tLabel(t) { return "Tabla " + t.id + " · β " + t.beta + "°" + (t.beta ? ", α " + (t.alpha > 0 ? "+" : "") + t.alpha + "°" : ""); }
 function renderLoss() {
   if (!window.IDAE) { $("lossPanel").hidden = true; return; }
@@ -951,8 +1036,9 @@ function renderLoss() {
   var o = document.createElement("option"); o.value = "auto"; o.textContent = "Automática (" + auto.id + ")"; sel.appendChild(o);
   IDAE.TABLES.forEach(function (x) { var op = document.createElement("option"); op.value = x.id; op.textContent = tLabel(x); sel.appendChild(op); });
   sel.value = p.idaeTable || "auto";
-  var r = IDAE.compute(effPoints(p), p.lat, t), lim = IDAE.LIMITS.filter(function (l) { return l.key === p.idaeCase; })[0] || IDAE.LIMITS[0];
-  var has = p.points.length > 0;
+  var r = IDAE.compute(shadeProfile(p), p.lat, t), lim = IDAE.LIMITS.filter(function (l) { return l.key === p.idaeCase; })[0] || IDAE.LIMITS[0];
+  var has = hasProfile(p);
+  $("lossBasis").innerHTML = has ? "Horizonte usado: <b></b>" : ""; if (has) $("lossBasis").lastChild.textContent = basisText(p);
   $("lossVal").textContent = has ? r.total.toFixed(1).replace(".", ",") : "–";
   var pill = $("lossPill");
   if (!has) { pill.className = "pill"; pill.textContent = "Mida el perfil de obstáculos para calcular las pérdidas"; }
@@ -1019,36 +1105,30 @@ function energyFromHourly(power) {
 }
 /* Horizonte: 36 alturas cada 10°, empezando por el norte y en sentido horario.
    Se toma el mayor entre el relieve de PVGIS y los obstáculos medidos. */
-function horizonFor(p, terrain) {
-  var prof = IDAE.profileFn(effPoints(p)), out = [];
-  var ter = (terrain || []).slice().sort(function (a, b) { return a.A - b.A; });
-  function terr(az) {
-    if (!ter.length) return 0;
-    if (az <= ter[0].A) return ter[0].H_hor;
-    for (var i = 1; i < ter.length; i++) if (az <= ter[i].A) { var a = ter[i - 1], b = ter[i]; return a.H_hor + (b.H_hor - a.H_hor) * (az - a.A) / ((b.A - a.A) || 1); }
-    return ter[ter.length - 1].H_hor;
-  }
-  for (var i = 0; i < 36; i++) { var az = norm180(i * 10 - 180); out.push(Math.max(0, Math.round(Math.max(terr(az), prof(az)) * 10) / 10)); }
+function horizonFor(p) {
+  var prof = shadeProfile(p), out = [];
+  for (var i = 0; i < 36; i++) { var az = norm180(i * 10 - 180); out.push(Math.max(0, Math.round(prof(az) * 10) / 10)); }
   return out;
 }
 async function runPvgis() {
   var p = proj();
-  if (!p.points.length) { toast("Mida primero el perfil de obstáculos"); return; }
+  if (p.useHz !== false) await ensureHorizon(p);
+  if (!hasProfile(p)) { toast("Mida primero el perfil de obstáculos"); return; }
   var btn = $("btnPvgis"); btn.disabled = true; btn.textContent = "Consultando PVGIS…";
   try {
     var kwp = p.kwp || 1, loss = p.sysLoss == null ? 14 : p.sysLoss;
-    var hz = await pvgisGet("topography/horizon-profile", { latitude: p.lat, longitude: p.lon, angle_output_units: "Degrees" });
-    var hp = hz.horizon_profile || {}, terrain = (hp.azimuth || []).map(function (a, i) { return { A: norm180(a - 180), H_hor: hp.horizon_height[i] }; });
     var base = { latitude: p.lat, longitude: p.lon, surface_orientation: norm360(180 + p.alphaMod), surface_tilt: p.beta,
       start_time: PV_Y0 + "-01-01T00:00:00", end_time: PV_Y1 + "-12-31T23:59:59", frequency: "Hourly",
       "peak-power": kwp, system_efficiency: +(1 - loss / 100).toFixed(3), analysis: "None", angle_output_units: "Degrees" };
+    /* sin horizonte de ningún tipo (cielo libre) y con el horizonte del diagrama */
+    base.horizon_profile = new Array(36).fill(0).join(",");
     var r0 = await pvgisGet("performance/broadband", base);
     var withObs = {}; for (var k in base) withObs[k] = base[k];
-    withObs.horizon_profile = horizonFor(p, terrain).join(",");
+    withObs.horizon_profile = horizonFor(p).join(",");
     var r1 = await pvgisGet("performance/broadband", withObs);
     if (!r0.power || !r1.power) throw new Error("PVGIS no ha devuelto la serie de producción.");
     p.pvgis = { t: Date.now(), kwp: kwp, loss: loss, angle: p.beta, aspect: p.alphaMod, db: "PVGIS 6, SARAH-3, " + PV_Y0 + "–" + PV_Y1,
-      base: energyFromHourly(r0.power), shaded: energyFromHourly(r1.power), horizon: withObs.horizon_profile };
+      base: energyFromHourly(r0.power), shaded: energyFromHourly(r1.power), horizon: withObs.horizon_profile, basis: basisText(p) };
     touch(); renderPvgis();
   } catch (e) {
     toast("No se ha podido consultar PVGIS: " + (e && e.message || e), 5000);
@@ -1063,8 +1143,8 @@ function renderPvgis() {
   var loss = r.base.Ey - r.shaded.Ey;
   $("pvBase").textContent = n0(r.base.Ey); $("pvShaded").textContent = n0(r.shaded.Ey);
   $("pvLoss").textContent = n0(loss); $("pvLossPct").textContent = "kWh/año · " + fmt(100 * loss / r.base.Ey, 1) + " %";
-  var stale = r.angle !== p.beta || r.aspect !== p.alphaMod || r.kwp !== (p.kwp || 1) || p.updated > r.t + 2000;
-  $("pvMeta").textContent = "Calculado el " + new Date(r.t).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" }) + " con " + r.kwp.toString().replace(".", ",") + " kWp, " + r.loss + " % de pérdidas, β " + r.angle + "° y α " + r.aspect + "° (" + r.db + ")." +
+  var stale = r.angle !== p.beta || r.aspect !== p.alphaMod || r.kwp !== (p.kwp || 1) || p.updated > r.t + 2000 || (r.basis && r.basis !== basisText(p));
+  $("pvMeta").textContent = "Calculado el " + new Date(r.t).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" }) + " con " + r.kwp.toString().replace(".", ",") + " kWp, " + r.loss + " % de pérdidas, β " + r.angle + "° y α " + r.aspect + "° (" + r.db + ")." + (r.basis ? " Horizonte: " + r.basis + "." : "") +
     (stale ? " El proyecto ha cambiado desde entonces: vuelva a calcular." : "");
   drawPvChartOn($("pvChart"), $("pvChart").clientWidth, $("pvChart").clientHeight, window.devicePixelRatio || 1, true);
 }
@@ -1238,13 +1318,38 @@ function renderSettings() {
 function gpsInfo() {
   var p = proj();
   $("gpsInfo").textContent = (p.lat >= 0 ? fmt(p.lat, 4) + "° N" : fmt(-p.lat, 4) + "° S") + ", " + (p.lon >= 0 ? fmt(p.lon, 4) + "° E" : fmt(-p.lon, 4) + "° O") +
-    " · declinación " + fmt(p.decl, 1) + "° (" + (p.declSource === "wmm" ? "WMM2025" : "manual") + ")" + (p.acc ? " · precisión ±" + Math.round(p.acc) + " m" : "");
+    " · declinación " + fmt(p.decl, 1) + "° (" + (p.declSource === "wmm" ? "WMM2025" : "manual") + ")" + (p.acc ? " · precisión ±" + Math.round(p.acc) + " m" : "") +
+    (p.locSource === "map" ? " · marcada en el mapa" : p.locSource === "manual" ? " · escrita a mano" : "");
 }
 function manualLocation() {
   var p = proj();
   if (p.declSource === "wmm") { var d = wmmDecl(p.lat, p.lon); if (d != null) p.decl = +d.toFixed(1); }
-  p.acc = null; touch(); renderSettings();
+  p.acc = null; p.locSource = "manual"; touch(); renderSettings();
 }
+/* Distancia aproximada en metros entre dos puntos */
+function distM(a1, o1, a2, o2) { var x = (o2 - o1) * D2R * Math.cos((a1 + a2) / 2 * D2R), y = (a2 - a1) * D2R; return 6371000 * Math.hypot(x, y); }
+function setLocation(lat, lon, source) {
+  var p = proj();
+  p.lat = lat; p.lon = lon; p.locSource = source; p.acc = null;
+  var d = wmmDecl(lat, lon); if (d != null && p.declSource === "wmm") p.decl = +d.toFixed(1);
+  touch(); gpsMsg(""); renderSettings();
+}
+$("btnMap").addEventListener("click", async function () {
+  var b = this; b.disabled = true;
+  try {
+    if (!document.querySelector('link[href="vendor/leaflet/leaflet.css"]')) {
+      var l = document.createElement("link"); l.rel = "stylesheet"; l.href = "vendor/leaflet/leaflet.css"; document.head.appendChild(l);
+    }
+    await loadScript("vendor/leaflet/leaflet.js"); await loadScript("mapa.js");
+    var p = proj();
+    Mapa.open({ lat: p.lat, lon: p.lon, zoom: p.locSource || p.acc ? 18 : 11,
+      onPick: function (lat, lon) { setLocation(lat, lon, "map"); toast("Ubicación marcada en el mapa · declinación " + fmt(proj().decl, 1) + "°"); },
+      onClose: function () { layerClose("map"); } });
+    layerOpen("map", function () { Mapa.close(); });
+    if (navigator.onLine === false) toast("Sin conexión: el mapa necesita internet para cargarse", 3500);
+  } catch (e) { toast("No se ha podido abrir el mapa: " + (e && e.message || e), 4000); }
+  finally { b.disabled = false; }
+});
 $("inLat").addEventListener("change", function () { var v = parseFloat(this.value); if (!isNaN(v) && Math.abs(v) <= 90) { proj().lat = v; manualLocation(); } else renderSettings(); });
 $("inLon").addEventListener("change", function () { var v = parseFloat(this.value); if (!isNaN(v) && Math.abs(v) <= 180) { proj().lon = v; manualLocation(); } else renderSettings(); });
 $("inDecl").addEventListener("change", function () { var v = parseFloat(this.value); if (!isNaN(v) && Math.abs(v) <= 30) { proj().decl = v; proj().declSource = "manual"; touch(); gpsInfo(); } else renderSettings(); });
@@ -1290,6 +1395,14 @@ async function locate(silent) {
   function done(pos) {
     gpsStop();
     var p = proj(), c = pos.coords;
+    /* la búsqueda automática no sustituye una ubicación elegida en el mapa o escrita a mano */
+    if (silent && (p.locSource === "map" || p.locSource === "manual")) {
+      var dm = distM(p.lat, p.lon, c.latitude, c.longitude);
+      if (dm > 1000) toast("Está a unos " + fmt(dm / 1000, dm < 10000 ? 1 : 0) + " km de la ubicación del proyecto", 4000);
+      if (dm > 1000) gpsMsg("Está a unos " + fmt(dm / 1000, dm < 10000 ? 1 : 0) + " km de la ubicación del proyecto (" + (p.locSource === "map" ? "marcada en el mapa" : "escrita a mano") + "). Si va a medir aquí, pulse «Usar GPS».", "warn");
+      return;
+    }
+    p.locSource = "gps";
     p.lat = +c.latitude.toFixed(5); p.lon = +c.longitude.toFixed(5); p.acc = c.accuracy;
     var d = wmmDecl(p.lat, p.lon); if (d != null) { p.decl = +d.toFixed(1); p.declSource = "wmm"; }
     touch(); gpsMsg("");
@@ -1322,6 +1435,14 @@ document.addEventListener("visibilitychange", function () {
 $("btnGpsRetry").addEventListener("click", function () { locate(false); });
 $("btnLocSettings").addEventListener("click", function () { var Dev = plugin("Dispositivo"); if (Dev) Dev.openLocationSettings().catch(function () {}); });
 $("btnGps").addEventListener("click", function () { locate(false); });
+/* Si la ubicación del proyecto se eligió en el mapa (o a mano) y se mide en otro sitio, se avisa.
+   Solo si el permiso de ubicación ya está concedido, y una vez por proyecto en cada sesión. */
+var farChecked = {};
+function checkFar(p) {
+  if (farChecked[p.id] || !(p.locSource === "map" || p.locSource === "manual")) return;
+  farChecked[p.id] = true;
+  try { navigator.permissions.query({ name: "geolocation" }).then(function (r) { if (r.state === "granted") locate(true); }).catch(function () {}); } catch (e) {}
+}
 function maybeAutoGps() {
   try { navigator.permissions.query({ name: "geolocation" }).then(function (r) { if (r.state === "granted") locate(true); }); } catch (e) {}
 }
@@ -1366,7 +1487,7 @@ function blobToDataURL(b) { return new Promise(function (res) { var r = new File
 
 async function buildReport() {
   var J = window.jspdf && window.jspdf.jsPDF; if (!J) throw new Error("jsPDF no disponible");
-  var p = proj(), t = lossTable(), r = IDAE.compute(effPoints(p), p.lat, t);
+  var p = proj(), t = lossTable(), r = IDAE.compute(shadeProfile(p), p.lat, t);
   var lim = IDAE.LIMITS.filter(function (l) { return l.key === p.idaeCase; })[0] || IDAE.LIMITS[0];
   var doc = new J({ unit: "mm", format: "a4" });
   var M = 18, W = 210 - 2 * M, y;
@@ -1412,13 +1533,15 @@ async function buildReport() {
   font("bold", 10, ok ? OK : BAD); txt((ok ? "Cumple" : "No cumple") + " el límite del " + lim.max + " %", bx + 70, y + 14);
   font("normal", 8.5, INK2);
   txt("Caso: " + lim.name.toLowerCase() + ". " + tLabel(t) + ".", bx + 70, y + 19.5, { maxWidth: bw - 76 });
-  txt("Fracción tapada exacta, sin redondear: " + dot(r.exact, 2) + " %.", bx + 70, y + 24.5, { maxWidth: bw - 76 });
+  txt("Fracción tapada exacta, sin redondear: " + dot(r.exact, 2) + " %. Horizonte: " + basisText(p) + ".", bx + 70, y + 24.5, { maxWidth: bw - 76 });
   y += bh + 8;
 
   /* datos del estudio */
   section("Datos del estudio");
   var kv = [
     ["Ubicación", dot(Math.abs(p.lat), 4) + "° " + (p.lat >= 0 ? "N" : "S") + ", " + dot(Math.abs(p.lon), 4) + "° " + (p.lon >= 0 ? "E" : "O")],
+    ["Origen de la ubicación", p.locSource === "map" ? "marcada en el mapa" : p.locSource === "manual" ? "escrita a mano" : p.locSource === "gps" ? "GPS del teléfono" + (p.acc ? " (±" + Math.round(p.acc) + " m)" : "") : "sin indicar"],
+    ["Horizonte", hzOn(p) ? (p.points.length ? "obstáculos medidos combinados con el relieve de PVGIS (modelo digital del terreno); en cada dirección se toma el mayor" : "solo el relieve de PVGIS (modelo digital del terreno), sin obstáculos medidos") : "solo los obstáculos medidos"],
     ["Declinación magnética", dot(p.decl, 1) + "° (" + (p.declSource === "wmm" ? "modelo WMM2025" : "introducida a mano") + ")"],
     ["Generador fotovoltaico", "inclinación β = " + p.beta + "°, orientación α = " + (p.alphaMod > 0 ? "+" : "") + p.alphaMod + "° (0° = sur, este negativo)"],
     ["Medición", "clinómetro y brújula del teléfono, promedio de " + (S.avg / 1000).toString().replace(".", ",") + " s por punto"]
@@ -1437,7 +1560,7 @@ async function buildReport() {
   section("Perfil de obstáculos sobre las trayectorias solares");
   doc.addImage(chartImage("full", W, ch), "JPEG", M, y, W, ch); y += ch + 4;
   font("normal", 8, INK2);
-  txt("Trayectoria del sol el día 21 de cada mes (azul: diciembre; naranja: junio) y horas solares. Zona gris: silueta medida de los obstáculos. Azimut 0° = sur, este negativo.", M, y, { maxWidth: W }); y += 10;
+  txt("Trayectoria del sol el día 21 de cada mes (azul: diciembre; naranja: junio) y horas solares. Zona gris: silueta medida de los obstáculos." + (hzOn(p) ? " Línea discontinua verde: relieve del terreno según PVGIS." : "") + " Azimut 0° = sur, este negativo.", M, y, { maxWidth: W }); y += 10;
 
   /* ---- Porciones ---- */
   ch = 92; need(ch + 20);
@@ -1449,7 +1572,7 @@ async function buildReport() {
   if (rows.length) {
     rows.push({ bold: true, cells: ["Total", "", "", "", r.total.toFixed(2).replace(".", ",") + " %"] });
     table(["Porción", "Fracción tapada", "Factor de llenado", "Valor tabla (%)", "Pérdida (%)"], rows, [30, 38, 38, 34, W - 140], ["left", "right", "right", "right", "right"]);
-  } else { font("normal", 9.5, INK); txt("Ninguna porción queda tapada por el perfil medido.", M, y); y += 8; }
+  } else { font("normal", 9.5, INK); txt("Ninguna porción queda tapada por el horizonte.", M, y); y += 8; }
   y += 3; font("normal", 8, INK2);
   var meth = "Método del Anexo III del Pliego de Condiciones Técnicas de Instalaciones Conectadas a Red (IDAE, 2011). La geometría de las porciones se calcula para la latitud del proyecto; los valores proceden de la tabla de referencia indicada, elaborada para la Península Ibérica. El factor de llenado se redondea a 0,25, 0,50, 0,75 o 1 como indica el pliego." + (t.note ? " " + t.note : "");
   need(16); var lines = doc.splitTextToSize(pdfSafe(meth), W); doc.text(lines, M, y); y += lines.length * 3.6 + 6;
@@ -1461,7 +1584,7 @@ async function buildReport() {
   need(110); section("Calendario de sombras");
   doc.addImage(calImg, "JPEG", M, y, W, W * 330 / 640); y += W * 330 / 640 + 4;
   font("normal", 8, INK2);
-  var cl = doc.splitTextToSize(pdfSafe("Día 15 de cada mes, en franjas de media hora (hora oficial del dispositivo). Naranja: sol directo; azul oscuro: sol tapado por el obstáculo; gris claro: sol bajo el horizonte. En total, el obstáculo tapa el sol " +
+  var cl = doc.splitTextToSize(pdfSafe("Día 15 de cada mes, en franjas de media hora (hora oficial del dispositivo). Naranja: sol directo; azul oscuro: sol tapado; gris claro: sol bajo el horizonte. En total, " + (hzOn(p) ? "el horizonte" : "el obstáculo") + " tapa el sol " +
     dot(calR.shadeH, 1) + " h de " + dot(calR.sunH, 1) + " h de sol en los días representados."), W);
   doc.text(cl, M, y); y += cl.length * 3.6 + 6;
 
@@ -1469,14 +1592,14 @@ async function buildReport() {
   if (p.pvgis) {
     var pv = p.pvgis, lossE = pv.base.Ey - pv.shaded.Ey;
     need(90); section("Producción estimada con PVGIS");
-    var nums = [["Sin obstáculos", Math.round(pv.base.Ey) + " kWh/año"], ["Con obstáculos", Math.round(pv.shaded.Ey) + " kWh/año"], ["Pérdida", Math.round(lossE) + " kWh/año (" + dot(100 * lossE / pv.base.Ey, 1) + " %)"]];
+    var nums = [["Sin sombras", Math.round(pv.base.Ey) + " kWh/año"], ["Con sombras", Math.round(pv.shaded.Ey) + " kWh/año"], ["Pérdida", Math.round(lossE) + " kWh/año (" + dot(100 * lossE / pv.base.Ey, 1) + " %)"]];
     nums.forEach(function (n, i) { var x = M + i * (W / 3); font("bold", 7.5, INK2); txt(n[0].toUpperCase(), x, y); font("normal", 13, i === 2 ? SUN : INK); txt(n[1], x, y + 6.5); });
     y += 12;
     var pvImg = withTheme("light", function () { var c = document.createElement("canvas"); drawPvChartOn(c, 640, 200, 2.2, false); return c.toDataURL("image/jpeg", 0.9); });
     doc.addImage(pvImg, "JPEG", M, y, W, W * 200 / 640); y += W * 200 / 640 + 4;
     font("normal", 8, INK2);
-    var pl = doc.splitTextToSize(pdfSafe("Producción media mensual (kWh) con y sin los obstáculos medidos. " + pv.db + " (Comisión Europea), instalación conectada a red de " + String(pv.kwp).replace(".", ",") + " kWp, " + pv.loss +
-      " % de pérdidas del sistema, inclinación " + pv.angle + "° y orientación " + pv.aspect + "°. El horizonte usado combina el relieve de PVGIS con los obstáculos medidos. Consulta del " + new Date(pv.t).toLocaleDateString("es-ES") + "."), W);
+    var pl = doc.splitTextToSize(pdfSafe("Producción media mensual (kWh) con y sin sombras. " + pv.db + " (Comisión Europea), instalación conectada a red de " + String(pv.kwp).replace(".", ",") + " kWp, " + pv.loss +
+      " % de pérdidas del sistema, inclinación " + pv.angle + "° y orientación " + pv.aspect + "°. Sin sombras: cielo libre hasta el horizonte. Con sombras: " + (pv.basis || "relieve de PVGIS y obstáculos medidos") + ". Consulta del " + new Date(pv.t).toLocaleDateString("es-ES") + "."), W);
     doc.text(pl, M, y); y += pl.length * 3.6 + 6;
   }
 

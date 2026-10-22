@@ -22,6 +22,8 @@ function sun(n, t) {
   return { A: (az + 180 + 360) % 360, h: h, az: az };
 }
 function obstacle(A) { return Math.max(0, ctx.prof(norm180(A - 180))); }
+function measured(A) { return Math.max(0, (ctx.wallProf || ctx.prof)(norm180(A - 180))); }
+function terrain(A) { return ctx.terr ? Math.max(0, ctx.terr(norm180(A - 180))) : 0; }
 function visible(p) { return p.h > 0 && p.h > obstacle(p.A); }
 function dayPath(n) { var out = []; for (var t = 3; t <= 21; t += 1 / 30) { var p = sun(n, t); if (p.h > -0.5) out.push({ t: t, A: p.A, h: Math.max(0, p.h), v: visible(p) }); } return out; }
 function sunHours(n) { var a = 0, b = 0; for (var t = 0; t < 24; t += 1 / 60) { var p = sun(n, t); if (p.h > 0) { a++; if (p.h > obstacle(p.A)) b++; } } return [a / 60, b / 60]; }
@@ -37,6 +39,8 @@ function init() {
     dome: new T.MeshBasicMaterial({ transparent: true, opacity: 0.08, side: T.DoubleSide, depthWrite: false }),
     grid: new T.LineBasicMaterial({ transparent: true, opacity: 0.55 }),
     wall: new T.MeshBasicMaterial({ transparent: true, opacity: 0.78, side: T.DoubleSide, depthWrite: false }),
+    terr: new T.MeshBasicMaterial({ transparent: true, opacity: 0.42, side: T.DoubleSide, depthWrite: false }),
+    terrEdge: new T.LineDashedMaterial({ dashSize: 0.02, gapSize: 0.014 }),
     edge: new T.LineBasicMaterial({}),
     ref: new T.LineDashedMaterial({ dashSize: 0.03, gapSize: 0.025, transparent: true, opacity: 0.9 }),
     path: new T.LineBasicMaterial({ vertexColors: true }),
@@ -59,11 +63,28 @@ function init() {
   var dyn = [];   /* objetos que dependen del proyecto o del día */
   function clearDyn(list) { list.forEach(function (o) { scene.remove(o); if (o.geometry) o.geometry.dispose(); }); list.length = 0; }
   var wallObjs = [], pathObjs = [];
+  /* banda de la silueta: f da la altura en cada azimut; r es el radio */
+  function band(f, r, mat) {
+    var pos = [];
+    for (var A = 0; A < 360; A += 1) {
+      var h1 = f(A), h2 = f(A + 1);
+      if (h1 <= 0 && h2 <= 0) continue;
+      var a = sph(A, 0, r), b = sph(A, h1, r), c = sph(A + 1, 0, r), d = sph(A + 1, h2, r);
+      pos.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z, b.x, b.y, b.z, d.x, d.y, d.z, c.x, c.y, c.z);
+    }
+    var g = new T.BufferGeometry(); g.setAttribute("position", new T.Float32BufferAttribute(pos, 3));
+    return new T.Mesh(g, mat);
+  }
   function buildWall() {
     clearDyn(wallObjs);
+    if (ctx.terr) {
+      var tm = band(terrain, 0.985, M.terr); tm.renderOrder = 1; scene.add(tm); wallObjs.push(tm);
+      var tt = []; for (var B = 0; B < 360; B += 1) tt.push(sph(B, terrain(B), 0.986));
+      var tl0 = line(tt, M.terrEdge, true); tl0.computeLineDistances(); scene.add(tl0); wallObjs.push(tl0);
+    }
     var pos = [], top = [];
     for (var A = 0; A < 360; A += 1) {
-      var h1 = obstacle(A), h2 = obstacle(A + 1);
+      var h1 = measured(A), h2 = measured(A + 1);
       top.push(sph(A, h1, 0.996));
       if (h1 <= 0 && h2 <= 0) continue;
       var a = sph(A, 0, .995), b = sph(A, h1, .995), c = sph(A + 1, 0, .995), d = sph(A + 1, h2, .995);
@@ -71,7 +92,7 @@ function init() {
     }
     var g = new T.BufferGeometry(); g.setAttribute("position", new T.Float32BufferAttribute(pos, 3));
     var wm = new T.Mesh(g, M.wall); scene.add(wm); wallObjs.push(wm);
-    var tl = line(top, M.edge, true); scene.add(tl); wallObjs.push(tl);
+    var tl = line(top, M.edge, true); tl.renderOrder = 2; wm.renderOrder = 2; scene.add(tl); wallObjs.push(tl);
     ctx.points.forEach(function (q) {
       var m = new T.Mesh(new T.SphereGeometry(q.sky ? 0.02 : 0.016, 12, 8), q.sky ? M.sky : M.pt);
       m.position.copy(sph(q.az + 180, Math.max(0, q.elev), 0.998)); scene.add(m); wallObjs.push(m);
@@ -92,7 +113,7 @@ function init() {
     var C = function (n) { return new T.Color(css(n)); };
     renderer.setClearColor(C("--v3d-sky"));
     M.ground.color = C("--v3d-ground"); M.dome.color = C("--winter"); M.grid.color = C("--v3d-grid");
-    M.wall.color = C("--v3d-wall"); M.edge.color = C("--ink"); M.ref.color = C("--ink-2");
+    M.wall.color = C("--v3d-wall"); M.edge.color = C("--ink"); M.terr.color = C("--terrain"); M.terrEdge.color = C("--terrain"); M.ref.color = C("--ink-2");
     M.ray.color = C("--sun"); M.obs.color = C("--ink"); M.pt.color = C("--sun"); M.sky.color = C("--winter");
   }
   function updateSun() {
@@ -253,7 +274,7 @@ function openView(c) {
   ctx = c;
   if (!R) R = init();
   if (!bound) { bindOnce(); bound = true; }
-  $("v3d").hidden = false; open = true;
+  $("v3d").hidden = false; open = true; $("v3dTerrKey").hidden = !c.terr;
   if (c.day) st.day = c.day; if (c.hour != null) st.hour = c.hour;
   $("v3dDay").value = st.day; $("v3dHour").value = st.hour;
   /* desde fuera, mirar desde el lado opuesto a los obstáculos para verlos de frente */

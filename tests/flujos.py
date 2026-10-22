@@ -22,6 +22,8 @@ def check(name, cond, info=""):
 
 SENS = """window.__o={a:200,b:105,g:0};setInterval(()=>{const e=new Event('deviceorientationabsolute');
 e.alpha=__o.a;e.beta=__o.b;e.gamma=__o.g;e.absolute=true;window.dispatchEvent(e)},20)"""
+import base64
+TILE = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mN8+/btfwAJYAPtq0YkWgAAAABJRU5ErkJggg==")
 def db(pg): return pg.evaluate("JSON.parse(localStorage.getItem('cs.v2'))")
 def P(pg): d = db(pg); return [p for p in d["projects"] if p["id"] == d["currentId"]][0]
 def aim(pg, head, elev, decl=-4.0):
@@ -39,11 +41,22 @@ with sync_playwright() as pw:
         if init: pg.add_init_script(init)
         if PVG:
             def mock(route):
-                u = route.request.url; f = "hz6.json" if "horizon-profile" in u else ("y10h.json" if "horizon_profile=" in u else "y10.json")
+                u = route.request.url
+                hzv = u.split("horizon_profile=")[1].split("&")[0].split("%2C") if "horizon_profile=" in u else []
+                f = "hz6.json" if "horizon-profile" in u else ("y10h.json" if any(float(v) != 0 for v in hzv) else "y10.json")
                 pg.pvgis_urls.append(u)
                 route.fulfill(status=200, body=open(os.path.join(PVG, f)).read(), headers={"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"})
             pg.pvgis_urls = []
             pg.route("https://photovoltaic-geographic-information-system.ec.europa.eu/**", mock)
+        # mapa: teselas y buscador simulados
+        def tile(route): route.fulfill(status=200, body=TILE, headers={"Content-Type": "image/png", "Access-Control-Allow-Origin": "*"})
+        for host in ("https://tile.openstreetmap.org/**", "https://server.arcgisonline.com/**", "https://www.ign.es/**"): pg.route(host, tile)
+        def nomi(route):
+            pg.nomi_urls.append(route.request.url)
+            route.fulfill(status=200, body=json.dumps([{"lat": "28.6585", "lon": "-17.9182", "display_name": "Los Llanos de Aridane, La Palma, Santa Cruz de Tenerife, Canarias, España", "addresstype": "town"}]),
+                          headers={"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"})
+        pg.nomi_urls = []
+        pg.route("https://nominatim.openstreetmap.org/**", nomi)
         pg.goto(URL); pg.wait_for_timeout(300)
         return ctx, pg
     try:
@@ -216,8 +229,14 @@ with sync_playwright() as pw:
         pg.click("#btnClearYes"); pg.wait_for_timeout(200)
         check("borrar: lista vacía", len(P(pg)["points"]) == 0 and pg.is_visible("#emptyMsg") and not pg.is_visible("#pointActions"))
         pg.click("[data-tab=chart]"); pg.wait_for_timeout(200)
+        if PVG:
+            check("vacío: con el relieve de PVGIS sí hay resultado", pg.inner_text("#lossVal") != "–" and "solo relieve" in pg.inner_text("#lossBasis"), (pg.inner_text("#lossVal"), pg.inner_text("#lossBasis")))
+            pg.click("#btnHz"); pg.wait_for_timeout(150)
+            check("horizonte: el interruptor se guarda en el proyecto", P(pg).get("useHz") is False and pg.get_attribute("#btnHz", "aria-checked") == "false")
         check("vacío: IDAE muestra guion", pg.inner_text("#lossVal") == "–")
         check("vacío: calendario pide medir", "Mida el perfil" in pg.inner_text("#calSummary"))
+        if PVG:
+            pg.click("#btnHz"); pg.wait_for_timeout(150)
 
         # ---------- 9b. Punto de cielo ----------
         pg.click("[data-tab=measure]"); pg.click("#btnStart"); pg.evaluate(SENS); pg.wait_for_timeout(1200)
@@ -259,6 +278,23 @@ with sync_playwright() as pw:
         check("guía del diagrama abre en el paso del IDAE", pg.evaluate("[...document.querySelectorAll('.sheet.help[data-help=chart] .dots i')].findIndex(i=>i.classList.contains('on'))") == 3)
         pg.click('.sheet.help[data-help="chart"] .help-close')
 
+        # ---------- 9e0. Horizonte de PVGIS ----------
+        if PVG:
+            pg.click("[data-tab=chart]"); pg.wait_for_timeout(600)
+            hz = P(pg).get("hz") or {}
+            check("horizonte: descargado y guardado en el proyecto", len(hz.get("A", [])) == 48 and len(hz.get("h", [])) == 48 and abs(hz["lat"] - P(pg)["lat"]) < 1e-6, hz)
+            check("horizonte: base del cálculo", "medido + relieve PVGIS" in pg.inner_text("#lossBasis"), pg.inner_text("#lossBasis"))
+            check("horizonte: clave en el diagrama", "Relieve" in pg.inner_text("#chartKeys"), pg.inner_text("#chartKeys"))
+            n0 = len([u for u in pg.pvgis_urls if "horizon-profile" in u]); pg.click("[data-tab=points]"); pg.click("[data-tab=chart]"); pg.wait_for_timeout(300)
+            check("horizonte: no se vuelve a descargar si la ubicación no cambia", len([u for u in pg.pvgis_urls if "horizon-profile" in u]) == n0)
+            pg.click("#btnPvgis"); pg.wait_for_timeout(1500)
+            u0 = [u for u in pg.pvgis_urls if "performance" in u][-2:]
+            check("PVGIS: sin sombras = horizonte a cero", u0 and "horizon_profile=" + "%2C".join(["0"] * 36) in u0[0], u0[:1])
+            check("PVGIS: indica el horizonte usado", "medido + relieve" in pg.inner_text("#pvMeta"), pg.inner_text("#pvMeta"))
+            pg.click("#btnHz"); pg.wait_for_timeout(150)
+            check("PVGIS: avisa al cambiar el horizonte", "vuelva a calcular" in pg.inner_text("#pvMeta"))
+            pg.click("#btnHz"); pg.wait_for_timeout(150)
+
         # ---------- 9e. Vista 3D ----------
         pg.click("[data-tab=chart]"); pg.click("#btn3d"); pg.wait_for_timeout(1500)
         check("3D: se abre", pg.is_visible("#v3d"))
@@ -266,6 +302,7 @@ with sync_playwright() as pw:
         check("3D: lectura del sol a mediodía de diciembre (≈38°)", "altura 37" in pg.inner_text("#v3dRead") or "altura 38" in pg.inner_text("#v3dRead"), pg.inner_text("#v3dRead"))
         pg.click("#v3dIn"); pg.wait_for_timeout(200)
         check("3D: botón seguir el móvil con sensores activos", pg.is_visible("#v3dFollow"))
+        if PVG: check("3D: clave del relieve visible", pg.is_visible("#v3dTerrKey"))
         pg.go_back(); pg.wait_for_timeout(300)
         check("3D: Atrás cierra la vista sin salir", not pg.is_visible("#v3d") and pg.is_visible("#view-chart"))
         pg.click("#btn3d"); pg.wait_for_timeout(500); pg.click("#v3dClose"); pg.wait_for_timeout(300)
@@ -273,12 +310,52 @@ with sync_playwright() as pw:
         pg.click("[data-tab=points]"); pg.click("#btnProjects"); pg.wait_for_timeout(200); pg.go_back(); pg.wait_for_timeout(300)
         check("Atrás cierra la hoja de proyectos", not pg.is_visible("#sheet"))
 
+        # ---------- 9f. Mapa ----------
+        pg.click("[data-tab=settings]"); pg.click("#btnMap"); pg.wait_for_selector("#mapv:not([hidden])", timeout=8000); pg.wait_for_timeout(400)
+        check("mapa: se abre con el pin", pg.evaluate("document.getElementById('mapEl').classList.contains('leaflet-container')") and pg.is_visible(".map-pin"))
+        pg.fill("#mapQ", "28.70123, -17.75456"); pg.press("#mapQ", "Enter"); pg.wait_for_timeout(300)
+        check("mapa: coordenadas escritas", "28,70123° N" in pg.inner_text("#mapCoords") and "17,75456° O" in pg.inner_text("#mapCoords"), pg.inner_text("#mapCoords"))
+        pg.fill("#mapQ", "https://www.google.com/maps/place/x/@28.6612,-17.9001,17z"); pg.press("#mapQ", "Enter"); pg.wait_for_timeout(300)
+        check("mapa: enlace de Google Maps", "28,66120° N" in pg.inner_text("#mapCoords"), pg.inner_text("#mapCoords"))
+        pg.fill("#mapQ", "Los Llanos"); pg.press("#mapQ", "Enter"); pg.wait_for_selector("#mapResults button", timeout=5000)
+        check("mapa: buscador consulta Nominatim", pg.nomi_urls and "Los%20Llanos" in pg.nomi_urls[-1], pg.nomi_urls[-1:])
+        pg.click("#mapResults button"); pg.wait_for_timeout(300)
+        check("mapa: resultado centra el mapa", "28,65850° N" in pg.inner_text("#mapCoords"), pg.inner_text("#mapCoords"))
+        pg.click("#mapPhoto"); pg.wait_for_timeout(200)
+        check("mapa: capa de ortofoto", pg.get_attribute("#mapPhoto", "aria-pressed") == "true" and pg.evaluate("[...document.querySelectorAll('#mapEl img.leaflet-tile')].some(i=>i.src.includes('arcgisonline'))"))
+        pg.click("#mapStreet")
+        pg.go_back(); pg.wait_for_timeout(300)
+        check("mapa: Atrás cierra sin cambiar la ubicación", not pg.is_visible("#mapv") and abs(P(pg)["lat"] - 28.6585) > 0.001)
+        pg.click("#btnMap"); pg.wait_for_selector("#mapv:not([hidden])"); pg.fill("#mapQ", "28.6585, -17.9182"); pg.press("#mapQ", "Enter"); pg.wait_for_timeout(300)
+        pg.click("#mapUse"); pg.wait_for_timeout(300)
+        pj = P(pg)
+        check("mapa: usar la ubicación", not pg.is_visible("#mapv") and abs(pj["lat"] - 28.6585) < 1e-5 and abs(pj["lon"] + 17.9182) < 1e-5 and pj.get("locSource") == "map", (pj["lat"], pj["lon"], pj.get("locSource")))
+        check("mapa: ajustes indican el origen", "marcada en el mapa" in pg.inner_text("#gpsInfo"), pg.inner_text("#gpsInfo"))
+        check("mapa: declinación recalculada", abs(pj["decl"] + 4.3) < 0.4, pj["decl"])
+        if PVG:
+            n0 = len([u for u in pg.pvgis_urls if "horizon-profile" in u]); pg.click("[data-tab=chart]"); pg.wait_for_timeout(500)
+            check("horizonte: se vuelve a descargar al cambiar la ubicación", len([u for u in pg.pvgis_urls if "horizon-profile" in u]) == n0 + 1 and "latitude=28.6585" in [u for u in pg.pvgis_urls if "horizon-profile" in u][-1])
+        page_map_proj = pj
+
         # ---------- 10. Ajustes persistentes ----------
         pg.click("[data-tab=settings]"); pg.select_option("#inAvg", "2000"); pg.click("[data-theme-opt=dark]")
         pg.reload(); pg.wait_for_timeout(300)
         check("persistencia: tema y promedio", pg.evaluate("document.documentElement.dataset.theme") == "dark" and db(pg)["settings"]["avg"] == 2000)
         check("sin errores de consola en todo el recorrido", not pg.errs, pg.errs)
         ctx.close()
+
+        # ---------- 10b. El GPS automático no pisa la ubicación del mapa ----------
+        st = {"projects": [dict(page_map_proj)], "currentId": page_map_proj["id"], "settings": {"avg": 1000, "delay": 0, "tap": False, "vol": True, "theme": "system", "offset": 0, "chartMode": "simple", "compareId": ""}}
+        ctx2 = br.new_context(viewport={"width": 400, "height": 860}, permissions=["geolocation"], geolocation={"latitude": 28.75, "longitude": -17.75, "accuracy": 10})
+        pg2 = ctx2.new_page(); pg2.add_init_script("if(!sessionStorage.y){sessionStorage.y=1;localStorage.setItem('cs.v2'," + json.dumps(json.dumps(st)) + ")}")
+        pg2.goto(URL); pg2.wait_for_timeout(300); pg2.click("#btnStart"); pg2.evaluate(SENS); pg2.wait_for_timeout(1500)
+        p2 = P(pg2)
+        check("GPS automático: respeta la ubicación del mapa", abs(p2["lat"] - 28.6585) < 1e-5 and p2.get("locSource") == "map", (p2["lat"], p2.get("locSource")))
+        check("GPS automático: avisa de la distancia", "km de la ubicación del proyecto" in pg2.inner_text("#toast"), pg2.inner_text("#toast"))
+        pg2.click("[data-tab=settings]"); pg2.click("#btnGps"); pg2.wait_for_timeout(1200)
+        p2 = P(pg2)
+        check("GPS pulsado: sí cambia la ubicación", abs(p2["lat"] - 28.75) < 1e-5 and p2.get("locSource") == "gps", (p2["lat"], p2.get("locSource")))
+        ctx2.close()
 
         # ---------- 11. Migración desde la versión 1 ----------
         v1 = "localStorage.setItem('clino.points',JSON.stringify([{az:-20,head:160,elev:25,sd:.3,note:'v1',date:'2026-10-06T10:00:00Z',abs:true}]));localStorage.setItem('clino.lat','28.7')"

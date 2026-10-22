@@ -103,7 +103,7 @@ function roundFill(f) {
 }
 
 function compute(points, lat, table) {
-  var prof = profileFn(points), cells = [], total = 0, exact = 0, N = 16;
+  var prof = typeof points === "function" ? points : profileFn(points), cells = [], total = 0, exact = 0, N = 16;
   ["A", "B", "C", "D"].forEach(function (L) {
     for (var n = 1; n <= 14; n++) {
       var id = L + n, v = table.cells[id]; if (!v) continue;
