@@ -541,3 +541,7 @@ select{font-family:var(--f-ui)}
 .v3d-now i{width:7px;height:7px;border-radius:50%;background:var(--ink-2)}
 .v3d-presets .v3d-now[aria-pressed="true"]{background:var(--sun);border-color:transparent;color:#1b0f05}
 .v3d-now[aria-pressed="true"] i{background:#1b0f05;animation:pulse 1.6s ease-in-out infinite}
+.now-btn{gap:7px}
+.now-btn i{width:7px;height:7px;border-radius:50%;background:var(--ink-2)}
+.now-btn[aria-pressed="true"]{background:var(--sun);border-color:transparent;color:#1b0f05}
+.now-btn[aria-pressed="true"] i{background:#1b0f05;animation:pulse 1.6s ease-in-out infinite}

@@ -195,6 +195,7 @@ with sync_playwright() as pw:
         check("IDAE: límite según el caso", "20 %" in pg.inner_text("#lossPill"), pg.inner_text("#lossPill"))
         cal = pg.locator("#cal"); cal.scroll_into_view_if_needed(); box = cal.bounding_box()
         cal.click(position={"x": box["width"] * .3, "y": box["height"] * .9}); pg.wait_for_timeout(200)
+        check("calendario: consultar una casilla sale del tiempo real", pg.get_attribute("#btnNow", "aria-pressed") == "false")
         check("calendario: casilla rellena fecha y hora", pg.input_value("#inQDate") != "" and pg.input_value("#inQTime") != "")
         check("calendario: estado del sol", any(s in pg.inner_text("#queryRes") for s in ("Sol directo", "En sombra", "Sol bajo el horizonte")))
         pg.click("#btnNow"); pg.wait_for_timeout(100)
@@ -349,6 +350,8 @@ with sync_playwright() as pw:
 
         # ---------- 10a. Seguir el móvil sin haber empezado a medir ----------
         ctx3, pg3 = newpage()
+        pg3.click("[data-tab=chart]"); pg3.wait_for_timeout(200)
+        check("diagrama: sol del momento actual por defecto", pg3.get_attribute("#btnNow", "aria-pressed") == "true" and pg3.input_value("#inQDate") != "" and any(t in pg3.inner_text("#queryRes") for t in ("Sol directo", "En sombra", "Sol bajo")), pg3.inner_text("#queryRes"))
         pg3.click("[data-tab=chart]"); pg3.click("#btn3d"); pg3.wait_for_timeout(1200); pg3.click("#v3dIn"); pg3.wait_for_timeout(200)
         import datetime
         hl = pg3.inner_text("#v3dHourLbl"); nowt = datetime.datetime.now()

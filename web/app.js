@@ -4,7 +4,7 @@
 (function () {
 "use strict";
 
-var VERSION = "2.0.0-beta18";
+var VERSION = "2.0.0-beta19";
 var D2R = Math.PI / 180, R2D = 180 / Math.PI;
 var $ = function (id) { return document.getElementById(id); };
 var Cap = window.Capacitor;
@@ -588,7 +588,8 @@ function show(v) {
   document.querySelectorAll("[data-view]").forEach(function (el) { el.hidden = el.dataset.view !== v; });
   document.querySelectorAll("[data-tab]").forEach(function (b) { if (b.dataset.tab === v) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
   $("app").classList.toggle("on-measure", v === "measure");
-  if (v === "chart") { fillCompare(); renderHz(); renderLoss(); drawChart(); renderCalendar(); renderQuery(); renderPvgis(); ensureHorizon(proj()); }
+  if (v === "chart") { if (queryLive) { var qd = new Date(); qd.setSeconds(0, 0); query = qd; $("inQDate").value = qd.getFullYear() + "-" + pad(qd.getMonth() + 1) + "-" + pad(qd.getDate()); $("inQTime").value = pad(qd.getHours()) + ":" + pad(qd.getMinutes()); $("btnNow").setAttribute("aria-pressed", "true"); }
+    fillCompare(); renderHz(); renderLoss(); drawChart(); renderCalendar(); renderQuery(); renderPvgis(); ensureHorizon(proj()); }
   if (v === "points") renderPoints();
   if (v === "settings") renderSettings();
 }
@@ -925,7 +926,7 @@ $("btn3d").addEventListener("click", async function () {
     Vista3D.open({
       lat: p.lat, lon: p.lon, points: ef, prof: shadeProfile(p), wallProf: IDAE.profileFn(ef), terr: hzOn(p) ? terrFn(p) : null, day: day, hour: hour,
       sensors: function () { if (!sens.gotData) return null; var a = average(150); return a ? { head: a.head, elev: a.elev } : null; },
-      enableSensors: enableSensors, compassWarning: compassWarning, live: !query,
+      enableSensors: enableSensors, compassWarning: compassWarning, live: queryLive,
       /* día del año y hora solar verdadera de este momento en la ubicación del proyecto */
       now: function () { var d = new Date(), y0 = new Date(d.getFullYear(), 0, 0); return { day: Math.floor((d - y0) / 86400000), hour: 12 + solarAt(d, p.lat, p.lon).H / 15 }; },
       onClose: function () { layerClose("v3d"); }
@@ -949,7 +950,8 @@ function solarAt(date, lat, lon) {
 }
 var MES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 var CAL = { h0: 6, h1: 21, step: 30 };        /* columnas de media hora, de 6:00 a 21:00 */
-var query = null;                              /* { date } consultada por el usuario */
+var query = null;                              /* fecha y hora consultada */
+var queryLive = true;                          /* true: la consulta sigue la hora actual */
 
 /* Matriz mes × franja: -1 sol bajo el horizonte; 0…1 fracción en sombra */
 function calendarData(p) {
@@ -1018,8 +1020,8 @@ $("cal").addEventListener("click", function (e) {
   setQuery(new Date(new Date().getFullYear(), m, 15, Math.floor(min / 60), min % 60));
 });
 function pad(n) { return String(n).padStart(2, "0"); }
-function setQuery(d) {
-  query = d;
+function setQuery(d, live) {
+  query = d; queryLive = !!live; $("btnNow").setAttribute("aria-pressed", String(queryLive));
   $("inQDate").value = d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
   $("inQTime").value = pad(d.getHours()) + ":" + pad(d.getMinutes());
   renderQuery(); renderCalendar(); drawChart();
@@ -1027,10 +1029,13 @@ function setQuery(d) {
 function onQueryInput() {
   var dv = $("inQDate").value, tv = $("inQTime").value; if (!dv || !tv) return;
   var a = dv.split("-").map(Number), b = tv.split(":").map(Number);
-  query = new Date(a[0], a[1] - 1, a[2], b[0], b[1]); renderQuery(); renderCalendar(); drawChart();
+  query = new Date(a[0], a[1] - 1, a[2], b[0], b[1]); queryLive = false; $("btnNow").setAttribute("aria-pressed", "false"); renderQuery(); renderCalendar(); drawChart();
 }
 $("inQDate").addEventListener("change", onQueryInput); $("inQTime").addEventListener("change", onQueryInput);
-$("btnNow").addEventListener("click", function () { var d = new Date(); d.setSeconds(0, 0); setQuery(d); });
+function nowQuery() { var d = new Date(); d.setSeconds(0, 0); setQuery(d, true); }
+$("btnNow").addEventListener("click", nowQuery);
+/* en tiempo real, el sol del diagrama avanza solo mientras se mira la pestaña */
+setInterval(function () { if (queryLive && currentView === "chart" && !document.hidden) nowQuery(); }, 30000);
 function renderQuery() {
   var out = $("queryRes");
   if (!query) { out.innerHTML = ""; return; }
