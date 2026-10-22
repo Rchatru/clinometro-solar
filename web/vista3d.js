@@ -8,7 +8,7 @@ var D2R = Math.PI / 180, R2D = 180 / Math.PI;
 var $ = function (id) { return document.getElementById(id); };
 var MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 var ctx = null, R = null, open = false, needs = true, raf = 0, playing = 0;
-var st = { day: 355, hour: 10, inside: false, follow: false };
+var st = { day: 355, hour: 10, inside: false, follow: false, live: false };
 var AIM_Y = 0.74;   /* altura (fracción de la pantalla) donde se dibuja la dirección de la mirada desde el centro */
 var cam = { az: 205, el: 26, zoomU: 1, yaw: 180, pitch: 12, hfov: 100 };   /* hfov: campo de visión horizontal desde el centro */
 
@@ -204,9 +204,10 @@ function fmt(n, d) { return (n < 0 ? "−" : "") + Math.abs(n).toFixed(d).replac
 function readouts() {
   var p = sun(st.day, st.hour), hh = obstacle(p.A), d = dateOf(st.day);
   $("v3dDayLbl").textContent = d.getDate() + " de " + MESES[d.getMonth()];
-  /* hora oficial aproximada: hora solar − longitud/15 + desfase del huso del móvil ese día (sin ecuación del tiempo) */
-  var off = -d.getTimezoneOffset() / 60, official = st.hour - ctx.lon / 15 + off;
-  $("v3dHourLbl").textContent = fmtH(st.hour) + " · ≈ " + fmtH(official) + " oficial";
+  /* hora oficial: hora solar − longitud/15 − ecuación del tiempo + desfase del huso del móvil ese día */
+  var B = 2 * Math.PI * (st.day - 81) / 364, eot = 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B);
+  var off = -d.getTimezoneOffset() / 60, official = st.hour - ctx.lon / 15 - eot / 60 + off;
+  $("v3dHourLbl").textContent = fmtH(st.hour) + " · " + (st.live ? "" : "≈ ") + fmtH(official) + " oficial" + (st.live ? " · ahora" : "");
   var s = $("v3dState");
   if (p.h <= 0) { s.className = "st night"; s.textContent = "Sol bajo el horizonte"; }
   else if (p.h > hh) { s.className = "st sun"; s.textContent = "Sol directo"; }
@@ -264,20 +265,19 @@ function bindOnce() {
     st.follow = !st.follow; btn.setAttribute("aria-pressed", String(st.follow)); hint(); needs = true;
     lastWarn = 0;
   });
-  $("v3dDay").addEventListener("input", function () { st.day = +this.value; R.buildPath(); R.updateSun(); readouts(); needs = true; });
-  $("v3dHour").addEventListener("input", function () { st.hour = +this.value; R.updateSun(); readouts(); needs = true; });
-  document.querySelectorAll(".v3d-presets button").forEach(function (b) {
+  $("v3dDay").addEventListener("input", function () { setLive(false); st.day = +this.value; R.buildPath(); R.updateSun(); readouts(); needs = true; });
+  $("v3dHour").addEventListener("input", function () { setLive(false); st.hour = +this.value; R.updateSun(); readouts(); needs = true; });
+  $("v3dNow").addEventListener("click", function () { setLive(true); });
+  document.querySelectorAll(".v3d-presets button[data-d]").forEach(function (b) {
     b.addEventListener("click", function () {
-      var d = b.dataset.d;
-      if (d === "today") { var now = new Date(), y0 = new Date(now.getFullYear(), 0, 0); st.day = Math.floor((now - y0) / 86400000); }
-      else st.day = +d;
+      setLive(false); st.day = +b.dataset.d;
       $("v3dDay").value = st.day; R.buildPath(); R.updateSun(); readouts(); needs = true;
     });
   });
   $("v3dPlay").addEventListener("click", function () {
     var btn = this;
     if (playing) { cancelAnimationFrame(playing); playing = 0; btn.textContent = "Reproducir el día"; return; }
-    btn.textContent = "Pausar";
+    setLive(false); btn.textContent = "Pausar";
     var reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches, last = performance.now();
     (function step(now) {
       var dt = (now - last) / 1000; last = now;
@@ -289,6 +289,21 @@ function bindOnce() {
   window.addEventListener("resize", function () { if (open) R.resize(); });
   if (window.ResizeObserver) new ResizeObserver(function () { if (open) R.resize(); }).observe($("v3dStage"));
   if (window.matchMedia) matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () { if (open) { R.colors(); R.buildPath(); R.updateSun(); needs = true; } });
+}
+/* Tiempo real: día y hora de ahora, actualizados cada 20 s mientras la vista está abierta */
+var liveT = 0;
+function setNow() {
+  if (!ctx.now) return;
+  var n = ctx.now(); st.day = n.day; st.hour = n.hour;
+  $("v3dDay").value = st.day; $("v3dHour").value = st.hour;
+  R.buildPath(); R.updateSun(); readouts(); needs = true; liveT = performance.now();
+}
+function setLive(v) {
+  st.live = !!v && !!ctx.now; $("v3dNow").setAttribute("aria-pressed", String(st.live));
+  if (st.live) {
+    if (playing) { cancelAnimationFrame(playing); playing = 0; $("v3dPlay").textContent = "Reproducir el día"; }
+    setNow();
+  }
 }
 var hintTimer = 0;
 function hint(text) {
@@ -308,6 +323,7 @@ function setInside(v) {
 var lastWarn = 0;
 function loop() {
   if (!open) return;
+  if (st.live && performance.now() - liveT > 20000) setNow();
   if (st.inside && st.follow && ctx.compassWarning && performance.now() - lastWarn > 8000) {
     var w = ctx.compassWarning(); if (w) { hint(w); lastWarn = performance.now(); }
   }
@@ -321,11 +337,13 @@ function openView(c) {
   if (!bound) { bindOnce(); bound = true; }
   $("v3d").hidden = false; open = true; $("v3dTerrKey").hidden = !c.terr;
   if (c.day) st.day = c.day; if (c.hour != null) st.hour = c.hour;
+  st.live = false; $("v3dNow").setAttribute("aria-pressed", "false"); $("v3dNow").hidden = !c.now;
   $("v3dDay").value = st.day; $("v3dHour").value = st.hour;
   /* desde fuera, mirar desde el lado opuesto a los obstáculos para verlos de frente */
   var sx = 0, sy = 0; ctx.points.forEach(function (q) { if (!q.sky) { sx += Math.sin((q.az + 180) * D2R); sy += Math.cos((q.az + 180) * D2R); } });
   if (sx || sy) cam.az = (Math.atan2(sx, sy) * R2D + 180 + 360) % 360;
   R.colors(); R.buildWall(); R.buildPath(); R.updateSun(); R.resize(); readouts(); setInside(st.inside);
+  if (c.live) setLive(true);
   needs = true; loop();
 }
 function close() {

@@ -70,6 +70,8 @@ with sync_playwright() as pw:
         # ---------- 2. Medición ----------
         pg.click("#btnStart"); pg.evaluate(SENS); pg.wait_for_timeout(1200)
         check("medir: bienvenida se cierra con datos", not pg.is_visible("#startPanel"))
+        try: pg.wait_for_selector("#tape", state="visible", timeout=4000)
+        except Exception: pass
         check("medir: cinta visible", pg.is_visible("#tape"))
         aim(pg, 150, 20); pg.wait_for_timeout(1300)
         el = pg.inner_text("#vElev"); az = pg.inner_text("#vAz")
@@ -299,6 +301,7 @@ with sync_playwright() as pw:
         pg.click("[data-tab=chart]"); pg.click("#btn3d"); pg.wait_for_timeout(1500)
         check("3D: se abre", pg.is_visible("#v3d"))
         pg.click('.v3d-presets button[data-d="355"]'); pg.fill("#v3dHour", "12"); pg.dispatch_event("#v3dHour", "input"); pg.wait_for_timeout(200)
+        check("3D: al elegir otro día se sale del tiempo real", pg.get_attribute("#v3dNow", "aria-pressed") == "false")
         check("3D: lectura del sol a mediodía de diciembre (≈38°)", "altura 37" in pg.inner_text("#v3dRead") or "altura 38" in pg.inner_text("#v3dRead"), pg.inner_text("#v3dRead"))
         pg.click("#v3dIn"); pg.wait_for_timeout(200)
         check("3D: botón seguir el móvil con sensores activos", pg.is_visible("#v3dFollow"))
@@ -347,6 +350,11 @@ with sync_playwright() as pw:
         # ---------- 10a. Seguir el móvil sin haber empezado a medir ----------
         ctx3, pg3 = newpage()
         pg3.click("[data-tab=chart]"); pg3.click("#btn3d"); pg3.wait_for_timeout(1200); pg3.click("#v3dIn"); pg3.wait_for_timeout(200)
+        import datetime
+        hl = pg3.inner_text("#v3dHourLbl"); nowt = datetime.datetime.now()
+        try: hh, mm = map(int, hl.split("· ")[1].split(" ")[0].split(":")); dmin = abs((hh * 60 + mm) - (nowt.hour * 60 + nowt.minute))
+        except Exception: dmin = 999
+        check("3D: abre en tiempo real (día de hoy y hora actual)", pg3.get_attribute("#v3dNow", "aria-pressed") == "true" and "ahora" in hl and min(dmin, 1440 - dmin) <= 2, hl)
         check("3D: botón seguir visible sin haber medido", pg3.is_visible("#v3dFollow"))
         pg3.evaluate(SENS); pg3.click("#v3dFollow"); pg3.wait_for_timeout(1200)
         check("3D: seguir el móvil enciende los sensores", pg3.get_attribute("#v3dFollow", "aria-pressed") == "true", pg3.inner_text("#v3dHint"))

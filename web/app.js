@@ -4,7 +4,7 @@
 (function () {
 "use strict";
 
-var VERSION = "2.0.0-beta17";
+var VERSION = "2.0.0-beta18";
 var D2R = Math.PI / 180, R2D = 180 / Math.PI;
 var $ = function (id) { return document.getElementById(id); };
 var Cap = window.Capacitor;
@@ -925,7 +925,9 @@ $("btn3d").addEventListener("click", async function () {
     Vista3D.open({
       lat: p.lat, lon: p.lon, points: ef, prof: shadeProfile(p), wallProf: IDAE.profileFn(ef), terr: hzOn(p) ? terrFn(p) : null, day: day, hour: hour,
       sensors: function () { if (!sens.gotData) return null; var a = average(150); return a ? { head: a.head, elev: a.elev } : null; },
-      enableSensors: enableSensors, compassWarning: compassWarning,
+      enableSensors: enableSensors, compassWarning: compassWarning, live: !query,
+      /* día del año y hora solar verdadera de este momento en la ubicación del proyecto */
+      now: function () { var d = new Date(), y0 = new Date(d.getFullYear(), 0, 0); return { day: Math.floor((d - y0) / 86400000), hour: 12 + solarAt(d, p.lat, p.lon).H / 15 }; },
       onClose: function () { layerClose("v3d"); }
     });
     layerOpen("v3d", function () { Vista3D.close(); });
