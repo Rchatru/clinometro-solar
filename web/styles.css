@@ -529,3 +529,8 @@ select{font-family:var(--f-ui)}
 .help-fig .terr{fill:none;stroke:var(--terrain);stroke-width:2;stroke-dasharray:6 4}
 .help-fig .terr-fill{fill:color-mix(in srgb,var(--terrain) 24%,transparent);stroke:none}
 .help-fig .lab-terr{fill:var(--terrain);font-weight:600}
+.loc-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.loc-actions .btn{padding:12px 10px;min-width:0}
+@media (max-width:350px){.loc-actions .btn{font-size:14px;gap:6px;padding:11px 6px}}
+.loc-actions .btn svg{flex:none}
+@media (max-width:350px){.loc-actions .btn svg{display:none}}
