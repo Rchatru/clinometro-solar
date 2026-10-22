@@ -145,7 +145,7 @@
         <label class="field" for="inBeta"><span>Inclinación de los módulos <small>β, 0° = horizontal</small></span>
           <span class="input-unit"><input id="inBeta" type="number" step="1" min="0" max="90" inputmode="decimal"><i>°</i></span></label>
         <label class="field" for="inAlpha"><span>Orientación de los módulos <small>α, 0° = sur, este negativo</small></span>
-          <span class="input-unit"><input id="inAlpha" type="number" step="1" min="-90" max="90" inputmode="decimal"><i>°</i></span></label>
+          <span class="input-unit"><input id="inAlpha" type="number" step="1" min="-90" max="90"><i>°</i></span></label>
         <label class="field" for="inTable"><span>Tabla de referencia</span><select id="inTable"></select></label>
         <label class="field" for="inCase"><span>Tipo de instalación</span>
           <select id="inCase"><option value="general">General (≤ 10 %)</option><option value="superposicion">Superposición (≤ 15 %)</option><option value="integracion">Integración arquitectónica (≤ 20 %)</option></select></label>
@@ -248,12 +248,16 @@
         </div>
       </div>
       <label class="field" for="inLat"><span>Latitud</span>
-        <span class="input-unit"><input id="inLat" type="number" step="0.01" inputmode="decimal"><i>°</i></span>
+        <span class="input-unit"><input id="inLat" type="number" step="0.01"><i>°</i></span>
+      </label>
+      <label class="field" for="inLon"><span>Longitud <small>este positiva, oeste negativa</small></span>
+        <span class="input-unit"><input id="inLon" type="number" step="0.01"><i>°</i></span>
       </label>
       <label class="field" for="inDecl"><span>Declinación magnética <small>oeste negativa</small></span>
-        <span class="input-unit"><input id="inDecl" type="number" step="0.1" inputmode="decimal"><i>°</i></span>
+        <span class="input-unit"><input id="inDecl" type="number" step="0.1"><i>°</i></span>
       </label>
       <p class="hint">Con el GPS, la declinación se calcula con el modelo magnético mundial WMM2025. También puede escribirla a mano.</p>
+      <div class="actions"><button class="btn" id="btnDeclAuto" type="button">Calcular declinación con el WMM</button></div>
     </div>
 
     <div class="group" id="corrGroup">
@@ -264,18 +268,18 @@
       <div class="corr-body" id="corrBody" hidden>
         <p class="hint">Indique dónde está el punto de estudio respecto al móvil. La app recalcula cada punto como se vería desde allí.</p>
         <label class="field" for="inDz"><span>Desnivel <small>m; positivo si el punto de estudio está más alto</small></span>
-          <span class="input-unit"><input id="inDz" type="number" step="0.05" inputmode="decimal"><i>m</i></span></label>
+          <span class="input-unit"><input id="inDz" type="number" step="0.05"><i>m</i></span></label>
         <label class="field" for="inDh"><span>Desplazamiento horizontal <small>m; opcional</small></span>
           <span class="input-unit"><input id="inDh" type="number" step="0.05" min="0" inputmode="decimal"><i>m</i></span></label>
         <label class="field" for="inDhAz" id="dhAzRow"><span>Hacia el azimut <small>0° = sur, este negativo</small></span>
-          <span class="input-unit"><input id="inDhAz" type="number" step="1" inputmode="decimal"><i>°</i></span></label>
+          <span class="input-unit"><input id="inDhAz" type="number" step="1"><i>°</i></span></label>
         <label class="field" for="inDistMode"><span>Distancia a los obstáculos</span>
           <select id="inDistMode"><option value="point">Medida en cada punto</option><option value="wall">Fachada recta</option></select></label>
         <div class="corr-wall" id="wallBox" hidden>
           <label class="field" for="inWallD"><span>Distancia perpendicular a la fachada</span>
             <span class="input-unit"><input id="inWallD" type="number" step="0.1" min="0" inputmode="decimal"><i>m</i></span></label>
           <label class="field" for="inWallAz"><span>Dirección de la perpendicular <small>azimut, 0° = sur</small></span>
-            <span class="input-unit"><input id="inWallAz" type="number" step="1" inputmode="decimal"><i>°</i></span></label>
+            <span class="input-unit"><input id="inWallAz" type="number" step="1"><i>°</i></span></label>
           <div class="actions"><button class="btn" id="btnWallAz" type="button">Tomar la dirección del visor</button></div>
           <p class="hint">Apunte con el móvil en perpendicular a la fachada y pulse el botón. La app calcula la distancia de cada punto a partir de esta.</p>
         </div>

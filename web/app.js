@@ -4,7 +4,7 @@
 (function () {
 "use strict";
 
-var VERSION = "2.0.0-beta5";
+var VERSION = "2.0.0-beta6";
 var D2R = Math.PI / 180, R2D = 180 / Math.PI;
 var $ = function (id) { return document.getElementById(id); };
 var Cap = window.Capacitor;
@@ -244,13 +244,9 @@ async function start() {
   } catch (e) { msg.push("No se ha podido pedir permiso para los sensores."); }
   startSensors(); startMagnetometer();
   if (!window.isSecureContext) msg.push("La página debe abrirse con https:// para usar la cámara y los sensores.");
-  try {
-    var stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
-    var v = $("video"); v.srcObject = stream;
-    v.addEventListener("playing", function () { v.hidden = false; document.querySelector(".idle-art").hidden = true; }, { once: true });
-    v.play().catch(function () {});
-  } catch (e) { msg.push("No se ha podido abrir la cámara (" + (e && e.name || "error") + "). Las lecturas funcionan igual apuntando con la parte trasera del móvil."); }
-  try { if ("wakeLock" in navigator) navigator.wakeLock.request("screen").catch(function () {}); } catch (e) {}
+  var camErr = await openCamera();
+  if (camErr) msg.push("No se ha podido abrir la cámara (" + camErr + "). Las lecturas funcionan igual apuntando con la parte trasera del móvil.");
+  keepAwake();
   sens.started = true;
   $("btnSave").disabled = false; $("btnCal").disabled = false;
   var t0 = performance.now();
@@ -268,6 +264,28 @@ async function start() {
   requestAnimationFrame(loop);
 }
 $("btnStart").addEventListener("click", start, { once: true });
+
+/* Cámara trasera. Devuelve null si se abre o el nombre del error */
+async function openCamera() {
+  try {
+    var v = $("video"), old = v.srcObject;
+    if (old) old.getTracks().forEach(function (t) { t.stop(); });
+    var stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+    v.srcObject = stream;
+    v.addEventListener("playing", function () { v.hidden = false; document.querySelector(".idle-art").hidden = true; }, { once: true });
+    v.play().catch(function () {});
+    return null;
+  } catch (e) { return e && e.name || "error"; }
+}
+function keepAwake() { try { if ("wakeLock" in navigator) navigator.wakeLock.request("screen").catch(function () {}); } catch (e) {} }
+/* Al volver a la app, el sistema puede haber cerrado la cámara: se reabre si hace falta */
+document.addEventListener("visibilitychange", function () {
+  if (document.hidden || !sens.started) return;
+  var v = $("video"), st = v.srcObject, tr = st && st.getVideoTracks()[0];
+  if (!tr || tr.readyState === "ended") openCamera();
+  else if (v.paused) v.play().catch(function () {});
+  keepAwake();
+});
 
 /* ---------------- Visor ---------------- */
 var lastUI = 0;
@@ -398,7 +416,12 @@ function sweepEnd() {
     return { az: k, elev: m, sd: sd, head: norm360(k + 180) };
   });
   if (prof.length < 2 || prof[prof.length - 1].az - prof[0].az < 3) { toast("Barrido demasiado corto: recorra al menos unos grados de azimut", 3200); return; }
-  var pts = simplify(prof, 0.6), p = proj(), batch = uid(), md = magDeviation();
+  /* mediana móvil de 3 grados: quita el ruido sin redondear las esquinas */
+  var smooth = prof.map(function (q, i) {
+    if (i === 0 || i === prof.length - 1) return q;
+    var o = {}; for (var k in q) o[k] = q[k]; o.elev = median([prof[i - 1].elev, q.elev, prof[i + 1].elev]); return o;
+  });
+  var pts = simplify(smooth, 0.8), p = proj(), batch = uid(), md = magDeviation();
   pts.forEach(function (q) {
     var pt = { id: uid(), az: +q.az.toFixed(1), head: +q.head.toFixed(1), elev: +q.elev.toFixed(1), sd: +q.sd.toFixed(2), note: "barrido", t: Date.now(), abs: sens.absolute, batch: batch };
     if (md != null) pt.mag = +md.toFixed(3);
@@ -892,7 +915,7 @@ function onLossInput() {
   if (!isNaN(b)) p.beta = Math.max(0, Math.min(90, b));
   if (!isNaN(a)) p.alphaMod = Math.max(-90, Math.min(90, a));
   p.idaeTable = $("inTable").value; p.idaeCase = $("inCase").value;
-  touch(); renderLoss(); drawChart();
+  touch(); renderLoss(); drawChart(); renderPvgis();
 }
 ["inBeta", "inAlpha", "inTable", "inCase"].forEach(function (id) { $(id).addEventListener("change", onLossInput); });
 
@@ -1040,7 +1063,7 @@ $("helpNext").addEventListener("click", function () { if (helpStep === helpSteps
 /* ---------------- Ajustes ---------------- */
 function renderSettings() {
   var p = proj();
-  $("inLat").value = p.lat.toFixed(4); $("inDecl").value = p.decl.toFixed(1);
+  $("inLat").value = p.lat.toFixed(4); $("inLon").value = p.lon.toFixed(4); $("inDecl").value = p.decl.toFixed(1);
   $("inAvg").value = String(S.avg); $("inDelay").value = String(S.delay);
   $("inTap").checked = !!S.tap; $("inPhoto").checked = !!S.photos; $("inVol").checked = !!S.vol; $("volRow").hidden = !isNative;
   gpsInfo();
@@ -1053,8 +1076,15 @@ function gpsInfo() {
   $("gpsInfo").textContent = (p.lat >= 0 ? fmt(p.lat, 4) + "° N" : fmt(-p.lat, 4) + "° S") + ", " + (p.lon >= 0 ? fmt(p.lon, 4) + "° E" : fmt(-p.lon, 4) + "° O") +
     " · declinación " + fmt(p.decl, 1) + "° (" + (p.declSource === "wmm" ? "WMM2025" : "manual") + ")" + (p.acc ? " · precisión ±" + Math.round(p.acc) + " m" : "");
 }
-$("inLat").addEventListener("change", function () { var v = parseFloat(this.value); if (!isNaN(v) && Math.abs(v) <= 90) { proj().lat = v; touch(); gpsInfo(); } });
-$("inDecl").addEventListener("change", function () { var v = parseFloat(this.value); if (!isNaN(v)) { proj().decl = v; proj().declSource = "manual"; touch(); gpsInfo(); } });
+function manualLocation() {
+  var p = proj();
+  if (p.declSource === "wmm") { var d = wmmDecl(p.lat, p.lon); if (d != null) p.decl = +d.toFixed(1); }
+  p.acc = null; touch(); renderSettings();
+}
+$("inLat").addEventListener("change", function () { var v = parseFloat(this.value); if (!isNaN(v) && Math.abs(v) <= 90) { proj().lat = v; manualLocation(); } else renderSettings(); });
+$("inLon").addEventListener("change", function () { var v = parseFloat(this.value); if (!isNaN(v) && Math.abs(v) <= 180) { proj().lon = v; manualLocation(); } else renderSettings(); });
+$("inDecl").addEventListener("change", function () { var v = parseFloat(this.value); if (!isNaN(v) && Math.abs(v) <= 30) { proj().decl = v; proj().declSource = "manual"; touch(); gpsInfo(); } else renderSettings(); });
+$("btnDeclAuto").addEventListener("click", function () { var p = proj(), d = wmmDecl(p.lat, p.lon); if (d == null) return; p.decl = +d.toFixed(1); p.declSource = "wmm"; touch(); renderSettings(); toast("Declinación según WMM2025: " + fmt(p.decl, 1) + "°"); });
 $("inAvg").addEventListener("change", function () { S.avg = +this.value; save(); });
 $("inDelay").addEventListener("change", function () { S.delay = +this.value; save(); });
 $("inTap").addEventListener("change", function () { S.tap = this.checked; save(); applyTap(); });
@@ -1147,12 +1177,12 @@ function applyTheme() {
   var dark = S.theme === "dark" || (S.theme === "system" && window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches);
   var meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.content = dark ? "#0d131b" : "#eef1f4";
   if (isNative) { var SB = plugin("SystemBars"); if (SB) SB.setStyle({ style: dark ? "DARK" : "LIGHT" }).catch(function () {}); }
-  if (currentView === "chart") drawChart();
+  if (currentView === "chart") { drawChart(); renderCalendar(); renderPvgis(); }
 }
 document.querySelectorAll("[data-theme-opt]").forEach(function (b) {
   b.addEventListener("click", function () { S.theme = b.dataset.themeOpt; save(); applyTheme(); renderSettings(); });
 });
-if (window.matchMedia) window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () { if (currentView === "chart") drawChart(); });
+if (window.matchMedia) window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () { if (S.theme === "system") applyTheme(); if (currentView === "chart") { renderCalendar(); renderPvgis(); } });
 
 /* ---------------- Informe PDF ---------------- */
 function pdfSafe(t) { return String(t).replace(/−/g, "-").replace(/≤/g, "<=").replace(/≥/g, ">=").replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/…/g, "...").replace(/[–—]/g, "-").replace(/β/g, "beta").replace(/α/g, "alfa"); }
