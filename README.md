@@ -25,3 +25,7 @@ cd android && ./gradlew assembleDebug
 ## Licencias de terceros
 
 - jsPDF (MIT) · geomagnetism / WMM2025 (Apache 2.0) · Instrument Sans, Instrument Serif y JetBrains Mono (SIL Open Font License)
+
+## Pruebas
+
+`python3 tests/flujos.py web` recorre en un navegador sin interfaz todos los flujos de la app (medición simulada, proyectos, corrección, IDAE, calendario, exportación, temas, migración) y comprueba resultados y persistencia.
