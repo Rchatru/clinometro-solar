@@ -350,6 +350,7 @@ with sync_playwright() as pw:
         check("3D: botón seguir visible sin haber medido", pg3.is_visible("#v3dFollow"))
         pg3.evaluate(SENS); pg3.click("#v3dFollow"); pg3.wait_for_timeout(1200)
         check("3D: seguir el móvil enciende los sensores", pg3.get_attribute("#v3dFollow", "aria-pressed") == "true", pg3.inner_text("#v3dHint"))
+        check("3D: cruz con la dirección del móvil", pg3.is_visible("#v3dAim") and "Az" in pg3.inner_text("#v3dAimTxt") and "El" in pg3.inner_text("#v3dAimTxt"), pg3.inner_text("#v3dAimTxt"))
         check("3D: sin errores al activar los sensores", not pg3.errs, pg3.errs)
         ctx3.close()
 

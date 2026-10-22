@@ -534,3 +534,6 @@ select{font-family:var(--f-ui)}
 @media (max-width:350px){.loc-actions .btn{font-size:14px;gap:6px;padding:11px 6px}}
 .loc-actions .btn svg{flex:none}
 @media (max-width:350px){.loc-actions .btn svg{display:none}}
+.v3d-aim{position:absolute;left:50%;top:74%;width:60px;height:60px;transform:translate(-50%,-50%);pointer-events:none}
+.v3d-aim svg{width:60px;height:60px;fill:none;stroke:var(--sun);stroke-width:2.2;stroke-linecap:round;filter:drop-shadow(0 0 2px var(--v3d-sky)) drop-shadow(0 0 2px var(--v3d-sky))}
+.v3d-aim span{position:absolute;left:58px;top:50%;transform:translateY(-50%);white-space:nowrap;font:600 12px var(--f-mono);color:var(--sun-ink);background:var(--surface);padding:2px 7px;border-radius:999px;border:1px solid var(--line)}

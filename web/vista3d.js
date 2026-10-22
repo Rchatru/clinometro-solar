@@ -9,6 +9,7 @@ var $ = function (id) { return document.getElementById(id); };
 var MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 var ctx = null, R = null, open = false, needs = true, raf = 0, playing = 0;
 var st = { day: 355, hour: 10, inside: false, follow: false };
+var AIM_Y = 0.74;   /* altura (fracción de la pantalla) donde se dibuja la dirección de la mirada desde el centro */
 var cam = { az: 205, el: 26, zoomU: 1, yaw: 180, pitch: 12, hfov: 100 };   /* hfov: campo de visión horizontal desde el centro */
 
 function css(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
@@ -124,7 +125,15 @@ function init() {
   }
   function placeCamera() {
     if (st.inside) {
-      if (st.follow && ctx.sensors) { var s = ctx.sensors(); if (s) { cam.yaw = s.head; cam.pitch = Math.max(-8, Math.min(88, s.elev)); } }
+      if (st.follow && ctx.sensors) {
+        var s = ctx.sensors();
+        if (s) {
+          cam.yaw = s.head; cam.pitch = Math.max(-8, Math.min(88, s.elev)); st.aim = s;
+          var az = norm180(s.head - 180);
+          $("v3dAimTxt").textContent = "Az " + (az > 0 ? "+" : az < 0 ? "−" : "") + Math.abs(az).toFixed(0) + "° · El " + (s.elev < 0 ? "−" : "") + Math.abs(s.elev).toFixed(1).replace(".", ",") + "°";
+        }
+      }
+      $("v3dAim").hidden = !st.follow;
       /* el campo de visión se fija en horizontal para que no dependa de la forma de la pantalla */
       var asp = camera.aspect || 1;
       camera.fov = Math.min(140, 2 * Math.atan(Math.tan(cam.hfov / 2 * D2R) / asp) * R2D); camera.position.set(0, 0.05, 0);
@@ -132,8 +141,9 @@ function init() {
       /* la dirección de la mirada se dibuja más abajo que el centro (a unos tres cuartos de la altura):
          así el horizonte queda bajo y el cielo ocupa la mayor parte, sin tener que levantar el móvil */
       var cw = canvas.clientWidth || 1, chh = canvas.clientHeight || 1;
-      camera.setViewOffset(cw, chh, 0, -0.24 * chh, cw, chh); camera.zoom = 1;
+      camera.setViewOffset(cw, chh, 0, -(AIM_Y - 0.5) * chh, cw, chh); camera.zoom = 1;
     } else {
+      $("v3dAim").hidden = true;
       camera.fov = 40; var q = sph(cam.az, cam.el, 3.4); camera.position.set(q.x, q.y, q.z); camera.lookAt(0, 0.35, 0);
       frameDome();
       return;
@@ -174,7 +184,15 @@ function init() {
     var w = canvas.clientWidth, h = canvas.clientHeight; if (!w || !h) return;
     renderer.setSize(w, h, false); camera.aspect = w / h; needs = true;
   }
-  function render() { placeCamera(); renderer.render(scene, camera); placeLabels(); }
+  /* la cruz se coloca donde apunta el móvil (coincide con el punto de mira salvo al mirar muy abajo) */
+  function placeAim() {
+    var el = $("v3dAim"); if (el.hidden || !st.aim) return;
+    camera.updateMatrixWorld();
+    var v = sph(st.aim.head, Math.min(88, st.aim.elev), 1).add(new T.Vector3(0, 0.05, 0)).project(camera);
+    var w = canvas.clientWidth, h = canvas.clientHeight, y = (1 - v.y) / 2 * h;
+    el.style.left = ((v.x + 1) / 2 * w) + "px"; el.style.top = Math.min(h - 30, y) + "px";
+  }
+  function render() { placeCamera(); renderer.render(scene, camera); placeLabels(); placeAim(); }
   return { buildWall: buildWall, buildPath: buildPath, colors: colors, updateSun: updateSun, resize: resize, render: render };
 }
 
