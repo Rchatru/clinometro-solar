@@ -108,6 +108,9 @@
       <select id="inCompare"><option value="">Ninguno</option></select>
     </label>
     <div class="chart-wrap">
+      <button class="btn-3d" id="btn3d" type="button" aria-label="Ver el perfil en 3D">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg>
+        <span>Ver en 3D</span></button>
       <canvas id="chart" aria-label="Silueta de los obstáculos sobre las trayectorias solares"></canvas>
     </div>
     <div class="legend">
@@ -619,7 +622,7 @@
         <path class="arrow draw" style="--d:1.2s" d="M100.8 109.6L103.8 105.5L107.0 101.5L110.4 97.6L114.1 93.9L118.2 90.3L122.5 86.9L127.3 83.7L132.4 80.7L138.1 78.0L144.1 75.6M137.2 74.7L144.1 75.6L139.6 81.0"/>
       </svg>
       <h4>Ejes y trayectorias</h4>
-      <p>En horizontal está el <b>azimut</b>: este a la izquierda, sur en el centro y oeste a la derecha. En vertical, la <b>elevación</b> sobre el horizonte. Cada curva es el recorrido del sol un día: el 21 de junio va alto y largo; el 21 de diciembre, bajo y corto; los equinoccios (marzo y septiembre) quedan en medio. A lo largo del día el sol avanza de izquierda a derecha.</p>
+      <p>En horizontal está el <b>azimut</b>: este a la izquierda, sur en el centro y oeste a la derecha. En vertical, la <b>elevación</b> sobre el horizonte. Cada curva es el recorrido del sol un día: el 21 de junio va alto y largo; el 21 de diciembre, bajo y corto; los equinoccios (marzo y septiembre) quedan en medio. A lo largo del día el sol avanza de izquierda a derecha. Con <b>Ver en 3D</b> verá lo mismo sobre una cúpula, desde fuera o desde el centro.</p>
     </div>
 
     <div class="help-step" hidden>
@@ -774,6 +777,36 @@
       <div class="dots"></div>
       <button class="btn primary help-next" type="button">Siguiente</button>
     </footer>
+  </section>
+
+  <section class="v3d" id="v3d" hidden aria-label="Vista 3D del horizonte">
+    <div class="v3d-stage" id="v3dStage">
+    <canvas id="c3d"></canvas>
+    <div class="v3d-labels" id="v3dLabels"></div>
+    <header class="v3d-top">
+      <button class="btn v3d-close" id="v3dClose" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Volver</button>
+      <div class="seg v3d-seg" role="group" aria-label="Punto de vista">
+        <button type="button" id="v3dOut" aria-pressed="true">Desde fuera</button>
+        <button type="button" id="v3dIn" aria-pressed="false">Desde el centro</button>
+      </div>
+    </header>
+    <button class="btn v3d-follow" id="v3dFollow" type="button" hidden aria-pressed="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/></svg>Seguir el móvil</button>
+    <p class="v3d-hint" id="v3dHint">Arrastre para girar · pellizque para acercar</p>
+    </div>
+    <div class="v3d-panel" id="v3dPanel">
+      <div class="v3d-state"><span class="st" id="v3dState"></span><span id="v3dRead"></span></div>
+      <label class="v3d-rng" for="v3dDay"><span>Día</span><b id="v3dDayLbl"></b></label>
+      <input type="range" id="v3dDay" min="1" max="365" value="355">
+      <div class="v3d-presets"><button type="button" data-d="355">21 dic</button><button type="button" data-d="80">21 mar</button><button type="button" data-d="172">21 jun</button><button type="button" data-d="266">23 sep</button><button type="button" data-d="today">Hoy</button></div>
+      <label class="v3d-rng" for="v3dHour"><span>Hora solar</span><b id="v3dHourLbl"></b></label>
+      <input type="range" id="v3dHour" min="4" max="20" step="0.05" value="10">
+      <div class="v3d-row">
+        <button class="btn primary" id="v3dPlay" type="button">Reproducir el día</button>
+        <span class="v3d-sun" id="v3dSunH"></span>
+      </div>
+    </div>
   </section>
   <div class="lightbox" id="lightbox" hidden>
     <img id="lbImg" alt="">

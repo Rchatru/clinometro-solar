@@ -4,7 +4,7 @@
 (function () {
 "use strict";
 
-var VERSION = "2.0.0-beta8";
+var VERSION = "2.0.0-beta9";
 var D2R = Math.PI / 180, R2D = 180 / Math.PI;
 var $ = function (id) { return document.getElementById(id); };
 var Cap = window.Capacitor;
@@ -473,6 +473,26 @@ window.__volShutter = function () {
   trigger(); return true;
 };
 
+/* ---------------- Capas y botón Atrás ----------------
+   Cada capa abierta (hoja, guía, foto, vista 3D) añade una entrada al historial; el botón Atrás de Android
+   (o del navegador) la cierra en lugar de salir de la app. */
+var layers = [], skipPop = 0;
+function layerOpen(name, hideFn) {
+  if (layers.some(function (l) { return l.name === name; })) return;
+  layers.push({ name: name, hide: hideFn });
+  try { history.pushState({ layer: name }, ""); } catch (e) {}
+}
+function layerClose(name) {
+  var i = -1; layers.forEach(function (l, k) { if (l.name === name) i = k; });
+  if (i < 0) return;
+  layers.splice(i, 1); skipPop++;
+  try { history.back(); } catch (e) { skipPop--; }
+}
+window.addEventListener("popstate", function () {
+  if (skipPop) { skipPop--; return; }
+  var l = layers.pop(); if (l) l.hide();
+});
+
 /* ---------------- Navegación ---------------- */
 var currentView = "measure";
 function show(v) {
@@ -547,11 +567,13 @@ function openLightbox(q, n) {
   Photos.url(q.id).then(function (u) {
     if (!u) return;
     $("lbImg").src = u; $("lbCap").textContent = "Punto " + n + " · elevación " + fmt(q.elev, 1) + "° · azimut " + sgn(q.az, 0) + "°" + (q.note ? " · " + q.note : "");
-    $("lightbox").hidden = false;
+    $("lightbox").hidden = false; layerOpen("lightbox", hideLightbox);
   });
 }
-$("lbClose").addEventListener("click", function () { $("lightbox").hidden = true; });
-$("lightbox").addEventListener("click", function (e) { if (e.target === $("lightbox")) $("lightbox").hidden = true; });
+function hideLightbox() { $("lightbox").hidden = true; }
+function closeLightbox() { hideLightbox(); layerClose("lightbox"); }
+$("lbClose").addEventListener("click", closeLightbox);
+$("lightbox").addEventListener("click", function (e) { if (e.target === $("lightbox")) closeLightbox(); });
 
 /* Renombrar */
 $("btnRename").addEventListener("click", function () { $("inRename").value = proj().name; $("renameBox").hidden = false; $("inRename").focus(); });
@@ -563,8 +585,9 @@ $("btnRenameOk").addEventListener("click", function () {
 
 /* ---------------- Proyectos ---------------- */
 var ICON_COPY = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>';
-function openSheet() { renderProjects(); $("sheet").hidden = false; $("sheetBg").hidden = false; }
-function closeSheet() { $("sheet").hidden = true; $("sheetBg").hidden = true; }
+function hideSheet() { $("sheet").hidden = true; $("sheetBg").hidden = true; }
+function openSheet() { renderProjects(); $("sheet").hidden = false; $("sheetBg").hidden = false; layerOpen("sheet", hideSheet); }
+function closeSheet() { hideSheet(); layerClose("sheet"); }
 $("btnProjects").addEventListener("click", openSheet);
 $("sheetBg").addEventListener("click", closeSheet);
 function renderProjects() {
@@ -780,6 +803,31 @@ $("modeIdae").addEventListener("click", function () { setMode("idae"); });
 $("modeSimple").addEventListener("click", function () { setMode("simple"); });
 $("modeFull").addEventListener("click", function () { setMode("full"); });
 window.addEventListener("resize", function () { if (currentView === "chart") { drawChart(); renderCalendar(); } });
+
+/* ---------------- Vista 3D ----------------
+   three.js y el módulo de la vista se cargan solo al abrirla. */
+function loadScript(src) {
+  return new Promise(function (res, rej) {
+    if (document.querySelector('script[src="' + src + '"]')) { res(); return; }
+    var sc = document.createElement("script"); sc.src = src; sc.onload = res; sc.onerror = function () { rej(new Error("No se ha podido cargar " + src)); };
+    document.head.appendChild(sc);
+  });
+}
+$("btn3d").addEventListener("click", async function () {
+  var b = this; b.disabled = true;
+  try {
+    await loadScript("vendor/three.min.js"); await loadScript("vista3d.js");
+    var p = proj(), ef = effPoints(p), day = null, hour = null;
+    if (query) { var y0 = new Date(query.getFullYear(), 0, 0); day = Math.floor((query - y0) / 86400000); hour = 12 + solarAt(query, p.lat, p.lon).H / 15; }
+    Vista3D.open({
+      lat: p.lat, lon: p.lon, points: ef, prof: IDAE.profileFn(ef), day: day, hour: hour,
+      sensors: function () { if (!sens.started) return null; var a = average(150); return a ? { head: a.head, elev: a.elev } : null; },
+      onClose: function () { layerClose("v3d"); }
+    });
+    layerOpen("v3d", function () { Vista3D.close(); });
+  } catch (e) { toast("No se ha podido abrir la vista 3D: " + (e && e.message || e), 4000); }
+  finally { b.disabled = false; }
+});
 
 /* ---------------- Calendario de sombras y posición del sol ---------------- */
 /* Posición del sol para una fecha y hora reales (algoritmo simplificado del Almanaque Astronómico, ±0,1°) */
@@ -1085,13 +1133,15 @@ function showHelp(i) {
   sh.scrollTop = 0;
 }
 function openHelp(name, step) {
-  closeHelp(); helpCur = name;
+  hideHelp(); helpCur = name;
   helpSheet(name).hidden = false; $("helpBg").hidden = false; showHelp(step || 0);
+  layerOpen("help", hideHelp);
 }
-function closeHelp() {
+function hideHelp() {
   document.querySelectorAll(".sheet.help").forEach(function (sh) { sh.hidden = true; });
   $("helpBg").hidden = true; helpCur = null;
 }
+function closeHelp() { hideHelp(); layerClose("help"); }
 document.querySelectorAll("[data-open-help]").forEach(function (b) {
   b.addEventListener("click", function (e) { e.stopPropagation(); openHelp(b.dataset.openHelp, +(b.dataset.helpStep || 0)); });
 });

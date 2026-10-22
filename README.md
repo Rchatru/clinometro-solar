@@ -24,7 +24,7 @@ cd android && ./gradlew assembleDebug
 
 ## Licencias de terceros
 
-- jsPDF (MIT) · geomagnetism / WMM2025 (Apache 2.0) · Instrument Sans, Instrument Serif y JetBrains Mono (SIL Open Font License)
+- three.js (MIT) · jsPDF (MIT) · geomagnetism / WMM2025 (Apache 2.0) · Instrument Sans, Instrument Serif y JetBrains Mono (SIL Open Font License)
 
 ## Pruebas
 

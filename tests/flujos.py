@@ -29,7 +29,7 @@ def aim(pg, head, elev, decl=-4.0):
     pg.evaluate(f"__o.a={(360 - (head - decl)) % 360};__o.b={90 + elev};__o.g=0")
 
 with sync_playwright() as pw:
-    br = pw.chromium.launch(args=["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"])
+    br = pw.chromium.launch(args=["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", "--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"])
     def newpage(scheme="light", init=None):
         ctx = br.new_context(viewport={"width": 400, "height": 860}, device_scale_factor=1, color_scheme=scheme,
                              permissions=["camera", "clipboard-read", "clipboard-write"], accept_downloads=True)
@@ -258,6 +258,20 @@ with sync_playwright() as pw:
         pg.click("[data-tab=chart]"); pg.click("#lossTitle [data-open-help]"); pg.wait_for_timeout(200)
         check("guía del diagrama abre en el paso del IDAE", pg.evaluate("[...document.querySelectorAll('.sheet.help[data-help=chart] .dots i')].findIndex(i=>i.classList.contains('on'))") == 3)
         pg.click('.sheet.help[data-help="chart"] .help-close')
+
+        # ---------- 9e. Vista 3D ----------
+        pg.click("[data-tab=chart]"); pg.click("#btn3d"); pg.wait_for_timeout(1500)
+        check("3D: se abre", pg.is_visible("#v3d"))
+        pg.click('.v3d-presets button[data-d="355"]'); pg.fill("#v3dHour", "12"); pg.dispatch_event("#v3dHour", "input"); pg.wait_for_timeout(200)
+        check("3D: lectura del sol a mediodía de diciembre (≈38°)", "altura 37" in pg.inner_text("#v3dRead") or "altura 38" in pg.inner_text("#v3dRead"), pg.inner_text("#v3dRead"))
+        pg.click("#v3dIn"); pg.wait_for_timeout(200)
+        check("3D: botón seguir el móvil con sensores activos", pg.is_visible("#v3dFollow"))
+        pg.go_back(); pg.wait_for_timeout(300)
+        check("3D: Atrás cierra la vista sin salir", not pg.is_visible("#v3d") and pg.is_visible("#view-chart"))
+        pg.click("#btn3d"); pg.wait_for_timeout(500); pg.click("#v3dClose"); pg.wait_for_timeout(300)
+        check("3D: Volver cierra la vista", not pg.is_visible("#v3d"))
+        pg.click("[data-tab=points]"); pg.click("#btnProjects"); pg.wait_for_timeout(200); pg.go_back(); pg.wait_for_timeout(300)
+        check("Atrás cierra la hoja de proyectos", not pg.is_visible("#sheet"))
 
         # ---------- 10. Ajustes persistentes ----------
         pg.click("[data-tab=settings]"); pg.select_option("#inAvg", "2000"); pg.click("[data-theme-opt=dark]")
