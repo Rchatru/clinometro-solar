@@ -9,7 +9,7 @@ var $ = function (id) { return document.getElementById(id); };
 var MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 var ctx = null, R = null, open = false, needs = true, raf = 0, playing = 0;
 var st = { day: 355, hour: 10, inside: false, follow: false };
-var cam = { az: 205, el: 26, zoomU: 1, yaw: 180, pitch: 15 };
+var cam = { az: 205, el: 26, zoomU: 1, yaw: 180, pitch: 18, hfov: 100 };   /* hfov: campo de visión horizontal desde el centro */
 
 function css(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
 function norm180(a) { a = ((a % 360) + 360) % 360; return a > 180 ? a - 360 : a; }
@@ -125,7 +125,9 @@ function init() {
   function placeCamera() {
     if (st.inside) {
       if (st.follow && ctx.sensors) { var s = ctx.sensors(); if (s) { cam.yaw = s.head; cam.pitch = Math.max(-10, Math.min(88, s.elev)); } }
-      camera.fov = 74; camera.position.set(0, 0.05, 0);
+      /* el campo de visión se fija en horizontal para que no dependa de la forma de la pantalla */
+      var asp = camera.aspect || 1;
+      camera.fov = Math.min(140, 2 * Math.atan(Math.tan(cam.hfov / 2 * D2R) / asp) * R2D); camera.position.set(0, 0.05, 0);
       camera.lookAt(sph(cam.yaw, cam.pitch, 1).add(new T.Vector3(0, 0.05, 0)));
       camera.clearViewOffset(); camera.zoom = 1;
     } else {
@@ -201,7 +203,7 @@ function bindOnce() {
     if (e.target.closest(".v3d-top,.v3d-follow")) return;
     hideHint();
     ptrs[e.pointerId] = { x: e.clientX, y: e.clientY }; try { v.setPointerCapture(e.pointerId); } catch (x) {}
-    var k = Object.keys(ptrs); if (k.length === 2) { var a = ptrs[k[0]], b = ptrs[k[1]]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); dist0 = cam.zoomU; }
+    var k = Object.keys(ptrs); if (k.length === 2) { var a = ptrs[k[0]], b = ptrs[k[1]]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); dist0 = st.inside ? cam.hfov : cam.zoomU; }
   });
   v.addEventListener("pointermove", function (e) {
     var p = ptrs[e.pointerId]; if (!p) return;
@@ -210,16 +212,20 @@ function bindOnce() {
       ptrs[e.pointerId] = { x: e.clientX, y: e.clientY };
       var a = ptrs[k[0]], b = ptrs[k[1]], d = Math.hypot(a.x - b.x, a.y - b.y);
       if (pinch0 && !st.inside) { cam.zoomU = Math.max(0.6, Math.min(3, dist0 * d / pinch0)); needs = true; }
+      if (pinch0 && st.inside) { cam.hfov = Math.max(35, Math.min(125, dist0 * pinch0 / d)); needs = true; }
       return;
     }
     var dx = e.clientX - p.x, dy = e.clientY - p.y; ptrs[e.pointerId] = { x: e.clientX, y: e.clientY };
-    if (st.inside) { if (st.follow) return; cam.yaw -= dx * 0.25; cam.pitch = Math.max(-10, Math.min(88, cam.pitch + dy * 0.25)); }
+    if (st.inside) { if (st.follow) return; var k2 = cam.hfov / (v.clientWidth || 400); cam.yaw -= dx * k2; cam.pitch = Math.max(-10, Math.min(88, cam.pitch + dy * k2)); }
     else { cam.az -= dx * 0.35; cam.el = Math.max(3, Math.min(88, cam.el + dy * 0.3)); }
     needs = true;
   });
   function up(e) { delete ptrs[e.pointerId]; pinch0 = 0; }
   v.addEventListener("pointerup", up); v.addEventListener("pointercancel", up);
-  v.addEventListener("wheel", function (e) { if (st.inside) return; e.preventDefault(); cam.zoomU = Math.max(0.6, Math.min(3, cam.zoomU * (e.deltaY > 0 ? 0.93 : 1.08))); needs = true; }, { passive: false });
+  v.addEventListener("wheel", function (e) {
+    e.preventDefault();
+    if (st.inside) { cam.hfov = Math.max(35, Math.min(125, cam.hfov * (e.deltaY > 0 ? 1.08 : 0.93))); needs = true; return; }
+    cam.zoomU = Math.max(0.6, Math.min(3, cam.zoomU * (e.deltaY > 0 ? 0.93 : 1.08))); needs = true; }, { passive: false });
   $("v3dClose").addEventListener("click", close);
   $("v3dOut").addEventListener("click", function () { setInside(false); });
   $("v3dIn").addEventListener("click", function () { setInside(true); });
@@ -253,7 +259,7 @@ function bindOnce() {
 var hintTimer = 0;
 function hint() {
   var h = $("v3dHint");
-  h.textContent = !st.inside ? "Arrastre para girar · pellizque para acercar" : st.follow ? "Mueva el móvil para mirar alrededor" : "Arrastre para mirar alrededor";
+  h.textContent = !st.inside ? "Arrastre para girar · pellizque para acercar" : st.follow ? "Mueva el móvil para mirar · pellizque para acercar" : "Arrastre para mirar · pellizque para acercar";
   h.classList.remove("gone"); clearTimeout(hintTimer); hintTimer = setTimeout(hideHint, 3500);
 }
 function hideHint() { clearTimeout(hintTimer); $("v3dHint").classList.add("gone"); }
