@@ -1,5 +1,5 @@
 {
-  "appId": "io.github.rchatru.clinometrosolar",
+  "appId": "com.brumalabs.clinometrosolar",
   "appName": "Clinómetro Solar",
   "webDir": "web",
   "android": { "backgroundColor": "#f7f3ec" },

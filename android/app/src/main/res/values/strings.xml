@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">Clinómetro Solar</string>
     <string name="title_activity_main">Clinómetro Solar</string>
-    <string name="package_name">io.github.rchatru.clinometrosolar</string>
-    <string name="custom_url_scheme">io.github.rchatru.clinometrosolar</string>
+    <string name="package_name">com.brumalabs.clinometrosolar</string>
+    <string name="custom_url_scheme">com.brumalabs.clinometrosolar</string>
 </resources>

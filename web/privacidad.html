@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Clinómetro Solar · Política de privacidad</title>
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
+<link rel="stylesheet" href="styles.css">
+<style>
+  body{background:var(--bg);color:var(--ink);font-family:var(--f-ui)}
+  .pp{max-width:720px;margin:0 auto;padding:40px 20px 64px;line-height:1.6;font-size:16px}
+  .pp header{display:flex;align-items:center;gap:14px;margin-bottom:8px}
+  .pp header img{width:52px;height:52px;border-radius:14px}
+  .pp h1{font:400 40px/1.1 var(--f-display);margin:0}
+  .pp h2{font:400 26px/1.2 var(--f-display);margin:34px 0 8px}
+  .pp p,.pp li{color:var(--ink)}
+  .pp .meta{color:var(--ink-2);font-size:14px;margin:0 0 24px}
+  .pp ul{padding-left:20px}
+  .pp li{margin:6px 0}
+  .pp a{color:var(--sun-ink)}
+  .pp .box{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px 18px;margin:18px 0}
+</style>
+</head>
+<body>
+<main class="pp">
+  <header><img src="icons/icon-192.png" alt=""><h1>Política de privacidad</h1></header>
+  <p class="meta">Clinómetro Solar · Bruma Labs · Última actualización: 23 de octubre de 2026</p>
+
+  <div class="box">
+    <p><b>En resumen:</b> Clinómetro Solar no tiene cuentas de usuario, servidores propios, publicidad ni herramientas de análisis. Todo lo que se mide y se guarda queda en el propio dispositivo. Solo se conecta a servicios externos cuando se usa una función que los necesita (producción con PVGIS, relieve del terreno, mapa y buscador), y en ese caso envía únicamente lo imprescindible para obtener el resultado.</p>
+  </div>
+
+  <h2>Responsable</h2>
+  <p>La app la desarrolla y publica Bruma Labs (Roberto Chávez Trujillo, España). Para cualquier consulta sobre privacidad puede escribir a <a href="mailto:bruma.labs@gmail.com">bruma.labs@gmail.com</a>.</p>
+
+  <h2>Datos que guarda la app</h2>
+  <p>La app guarda en el almacenamiento interno del dispositivo:</p>
+  <ul>
+    <li>Los proyectos y sus puntos medidos (azimut, elevación, notas, distancias y fecha).</li>
+    <li>La ubicación de cada proyecto (latitud, longitud y declinación magnética), obtenida con el GPS, elegida en el mapa o escrita a mano.</li>
+    <li>Las fotos de los puntos, si esa opción está activada.</li>
+    <li>Los ajustes de la app y, si se descarga, el perfil del relieve del terreno de cada proyecto.</li>
+  </ul>
+  <p>Estos datos no se envían al desarrollador ni a nadie más. Se pueden borrar desde la propia app (eliminando puntos o proyectos) y se eliminan por completo al desinstalarla.</p>
+
+  <h2>Permisos</h2>
+  <ul>
+    <li><b>Cámara:</b> muestra el visor para apuntar a los obstáculos y, si se activa, guarda una foto de cada punto en el dispositivo. Las imágenes no salen del teléfono salvo que se compartan expresamente.</li>
+    <li><b>Ubicación:</b> se usa solo cuando se pulsa «Usar GPS» o al comprobar si se mide lejos de la ubicación del proyecto, para obtener la latitud, la longitud y la declinación magnética. No se usa en segundo plano.</li>
+    <li><b>Sensores de movimiento y brújula:</b> se leen en el dispositivo para calcular la orientación del móvil. No se guardan ni se envían.</li>
+    <li><b>Vibración:</b> confirma cada medida.</li>
+  </ul>
+
+  <h2>Servicios externos</h2>
+  <p>Algunas funciones necesitan conexión a internet. Solo se usan cuando se activa la función correspondiente, y la conexión va cifrada (HTTPS). Como en cualquier conexión a internet, estos servicios reciben la dirección IP del dispositivo.</p>
+  <ul>
+    <li><b>PVGIS</b> (Centro Común de Investigación de la Comisión Europea): para el relieve del terreno y la estimación de producción recibe las coordenadas del proyecto, la inclinación y orientación de los módulos, la potencia y el perfil del horizonte. <a href="https://joint-research-centre.ec.europa.eu/photovoltaic-geographical-information-system-pvgis/pvgis-privacy-statement_en">Declaración de privacidad de PVGIS</a>.</li>
+    <li><b>Mapa:</b> al elegir la ubicación en el mapa se descargan imágenes de OpenStreetMap, Esri y el Instituto Geográfico Nacional (PNOA), que reciben la zona visible del mapa. <a href="https://wiki.osmfoundation.org/wiki/Privacy_Policy">Privacidad de OpenStreetMap</a>, <a href="https://www.esri.com/en-us/privacy/overview">privacidad de Esri</a>, <a href="https://www.ign.es/web/ign/portal/aviso-legal">aviso legal del IGN</a>.</li>
+    <li><b>Buscador del mapa</b> (Nominatim, de OpenStreetMap): recibe el texto que se escribe en el buscador.</li>
+  </ul>
+  <p>Ninguno de estos servicios recibe datos que identifiquen a la persona usuaria, como nombre, correo o identificadores del dispositivo.</p>
+
+  <h2>Exportar y compartir</h2>
+  <p>El informe PDF, el archivo CSV y la copia de seguridad se generan en el dispositivo. Solo salen de él si se comparten o se guardan en otro lugar, y en ese caso se aplican las condiciones de la app o servicio elegido.</p>
+
+  <h2>Menores</h2>
+  <p>La app no recoge datos personales de ninguna persona, tampoco de menores. Puede usarse en centros educativos sin necesidad de crear cuentas.</p>
+
+  <h2>Cambios en esta política</h2>
+  <p>Si la app cambia la forma de tratar los datos, se actualizará esta página y la fecha de revisión.</p>
+</main>
+</body>
+</html>

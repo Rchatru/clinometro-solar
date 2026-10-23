@@ -545,3 +545,4 @@ select{font-family:var(--f-ui)}
 .now-btn i{width:7px;height:7px;border-radius:50%;background:var(--ink-2)}
 .now-btn[aria-pressed="true"]{background:var(--sun);border-color:transparent;color:#1b0f05}
 .now-btn[aria-pressed="true"] i{background:#1b0f05;animation:pulse 1.6s ease-in-out infinite}
+@media (max-width:390px){.v3d-top{flex-wrap:nowrap;gap:6px}.v3d-close{padding:8px 10px 8px 6px}.v3d-seg button{padding:7px 9px;font-size:13px}}

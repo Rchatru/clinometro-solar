@@ -1,4 +1,4 @@
-package io.github.rchatru.clinometrosolar;
+package com.brumalabs.clinometrosolar;
 
 import android.content.Context;
 import android.hardware.Sensor;

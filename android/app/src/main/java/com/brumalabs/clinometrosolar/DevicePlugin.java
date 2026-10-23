@@ -1,4 +1,4 @@
-package io.github.rchatru.clinometrosolar;
+package com.brumalabs.clinometrosolar;
 
 import android.app.Activity;
 import android.content.Context;

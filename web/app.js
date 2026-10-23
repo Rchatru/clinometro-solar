@@ -4,7 +4,7 @@
 (function () {
 "use strict";
 
-var VERSION = "2.0.0-beta19";
+var VERSION = "2.0.0";
 var D2R = Math.PI / 180, R2D = 180 / Math.PI;
 var $ = function (id) { return document.getElementById(id); };
 var Cap = window.Capacitor;
