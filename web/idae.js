@@ -78,10 +78,19 @@ function expandProfile(points) {
   }
   return out;
 }
+/* Si los puntos dan casi la vuelta completa (hueco de cierre de 30° o menos),
+   el perfil se cierra uniendo el último punto con el primero a través de ±180° (norte). */
+var CLOSE_GAP = 30;
 function profileFn(points) {
   var p = expandProfile(points);
+  var wrap = p.length >= 3 && p[0].az + 360 - p[p.length - 1].az <= CLOSE_GAP;
   return function (az) {
-    if (!p.length || az < p[0].az || az > p[p.length - 1].az) return 0;
+    if (!p.length) return 0;
+    if (az < p[0].az || az > p[p.length - 1].az) {
+      if (!wrap) return 0;
+      var L = p[p.length - 1], F = p[0], x = az < F.az ? az + 360 : az, w0 = F.az + 360 - L.az;
+      return w0 <= 0 ? Math.max(L.elev, F.elev) : L.elev + (F.elev - L.elev) * (x - L.az) / w0;
+    }
     var hit = -1; p.forEach(function (v) { if (v.az === az && v.elev > hit) hit = v.elev; });
     if (hit >= 0) return hit;
     for (var i = 1; i < p.length; i++) {

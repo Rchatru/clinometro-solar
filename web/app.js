@@ -4,7 +4,7 @@
 (function () {
 "use strict";
 
-var VERSION = "2.0.0";
+var VERSION = "2.0.1";
 var D2R = Math.PI / 180, R2D = 180 / Math.PI;
 var $ = function (id) { return document.getElementById(id); };
 var Cap = window.Capacitor;
@@ -1169,7 +1169,7 @@ function renderPvgis() {
   var loss = r.base.Ey - r.shaded.Ey;
   $("pvBase").textContent = n0(r.base.Ey); $("pvShaded").textContent = n0(r.shaded.Ey);
   $("pvLoss").textContent = n0(loss); $("pvLossPct").textContent = "kWh/año · " + fmt(100 * loss / r.base.Ey, 1) + " %";
-  var stale = r.angle !== p.beta || r.aspect !== p.alphaMod || r.kwp !== (p.kwp || 1) || p.updated > r.t + 2000 || (r.basis && r.basis !== basisText(p));
+  var stale = pvStale(p);
   $("pvMeta").textContent = "Calculado el " + new Date(r.t).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" }) + " con " + r.kwp.toString().replace(".", ",") + " kWp, " + r.loss + " % de pérdidas, β " + r.angle + "° y α " + r.aspect + "° (" + r.db + ")." + (r.basis ? " Horizonte: " + r.basis + "." : "") +
     (stale ? " El proyecto ha cambiado desde entonces: vuelva a calcular." : "");
   drawPvChartOn($("pvChart"), $("pvChart").clientWidth, $("pvChart").clientHeight, window.devicePixelRatio || 1, true);
@@ -1197,6 +1197,11 @@ function drawPvChartOn(c, w, h, dpr, onScreen) {
   touch(); renderPvgis();
 }); });
 
+/* Indica si el cálculo de PVGIS guardado ya no corresponde al proyecto */
+function pvStale(p) {
+  var r = p.pvgis; if (!r) return false;
+  return r.angle !== p.beta || r.aspect !== p.alphaMod || r.kwp !== (p.kwp || 1) || p.updated > r.t + 2000 || !!(r.basis && r.basis !== basisText(p));
+}
 /* ---------------- Ajustes: punto de estudio ---------------- */
 function renderCorr() {
   var p = proj(), c = corrCfg(p);
@@ -1579,7 +1584,11 @@ async function buildReport() {
       (cc.mode === "wall" ? "; fachada a " + dot(cc.wallD || 0, 1) + " m en la dirección " + dot(cc.wallAz || 0, 0) + "°" : "; distancia medida en cada punto") +
       (missingDist(p) ? " (" + missingDist(p) + " puntos sin corregir)" : "")]);
   }
-  kv.forEach(function (row) { font("normal", 9, INK2); txt(row[0], M, y); font("normal", 9.5, INK); txt(row[1], M + 48, y, { maxWidth: W - 48 }); y += 6.2; });
+  kv.forEach(function (row) {
+    font("normal", 9.5, INK); var ln = doc.splitTextToSize(pdfSafe(row[1]), W - 48);
+    font("normal", 9, INK2); txt(row[0], M, y); font("normal", 9.5, INK); doc.text(ln, M + 48, y);
+    y += Math.max(6.2, ln.length * 4.3 + 1.9);
+  });
   y += 4;
 
   var ch = 92; need(ch + 24);
@@ -1626,7 +1635,13 @@ async function buildReport() {
     font("normal", 8, INK2);
     var pl = doc.splitTextToSize(pdfSafe("Producción media mensual (kWh) con y sin sombras. " + pv.db + " (Comisión Europea), instalación conectada a red de " + String(pv.kwp).replace(".", ",") + " kWp, " + pv.loss +
       " % de pérdidas del sistema, inclinación " + pv.angle + "° y orientación " + pv.aspect + "°. Sin sombras: cielo libre hasta el horizonte. Con sombras: " + (pv.basis || "relieve de PVGIS y obstáculos medidos") + ". Consulta del " + new Date(pv.t).toLocaleDateString("es-ES") + "."), W);
-    doc.text(pl, M, y); y += pl.length * 3.6 + 6;
+    doc.text(pl, M, y); y += pl.length * 3.6 + 3;
+    if (pvStale(p)) {
+      font("bold", 8.5, BAD);
+      var sl = doc.splitTextToSize(pdfSafe("Atención: el proyecto ha cambiado desde esta consulta (inclinación, orientación, potencia, puntos u horizonte). Vuelva a calcular con PVGIS para que estos valores correspondan al estudio."), W);
+      doc.text(sl, M, y); y += sl.length * 3.8;
+    }
+    y += 3;
   }
 
   /* ---- Puntos ---- */

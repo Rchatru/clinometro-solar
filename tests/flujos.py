@@ -249,6 +249,8 @@ with sync_playwright() as pw:
         pts = P(pg)["points"]
         check("cielo: guardado con elevación 0", len(pts) == 3 and pts[1].get("sky") and pts[1]["elev"] == 0, pts)
         prof = pg.evaluate("(()=>{const d=JSON.parse(localStorage.getItem('cs.v2'));const p=d.projects.find(x=>x.id===d.currentId);const f=IDAE.profileFn(p.points);return [f(-60),f(-55),f(-45),f(-21),f(-20)]})()")
+        wr = pg.evaluate("(()=>{const f=IDAE.profileFn([{az:-170,elev:20},{az:0,elev:10},{az:170,elev:30}]);const g=IDAE.profileFn([{az:-90,elev:20},{az:90,elev:30}]);return [f(180),f(-175),g(180)]})()")
+        check("perfil: se cierra por el norte si da casi la vuelta", abs(wr[0] - 25) < .01 and abs(wr[1] - 22.5) < .01 and wr[2] == 0, wr)
         check("cielo: el perfil cae a 0 en el hueco", abs(prof[0] - 30) < .5 and prof[1] == 0 and prof[2] == 0 and abs(prof[4] - 25) < .5, prof)
         pg.click("[data-tab=points]")
         check("cielo: aparece en la lista", "sin obstáculo" in pg.inner_text("#plist"))
