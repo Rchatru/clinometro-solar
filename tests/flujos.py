@@ -206,6 +206,8 @@ with sync_playwright() as pw:
             hzu = [u for u in pg.pvgis_urls if "horizon_profile=" in u]
             check("PVGIS: envía el horizonte combinado (36 valores)", hzu and len(hzu[0].split("horizon_profile=")[1].split("&")[0].split("%2C")) == 36, hzu[:1])
             check("PVGIS: orientación sur = 180°", all("surface_orientation=180" in u for u in pg.pvgis_urls if "performance" in u))
+            pg.select_option("#inCase", "superposicion"); pg.wait_for_timeout(100)
+            check("PVGIS: cambiar el tipo de instalación no lo invalida", "vuelva a calcular" not in pg.inner_text("#pvMeta"), pg.inner_text("#pvMeta"))
             pg.fill("#inBeta", "35"); pg.press("#inBeta", "Tab"); pg.wait_for_timeout(100)
             check("PVGIS: avisa si el proyecto cambia", "vuelva a calcular" in pg.inner_text("#pvMeta"))
 

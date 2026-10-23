@@ -4,7 +4,7 @@
 (function () {
 "use strict";
 
-var VERSION = "2.0.1";
+var VERSION = "2.0.2";
 var D2R = Math.PI / 180, R2D = 180 / Math.PI;
 var $ = function (id) { return document.getElementById(id); };
 var Cap = window.Capacitor;
@@ -712,7 +712,8 @@ function renderProjects() {
 }
 $("btnNewProj").addEventListener("click", function () {
   var n = newProject("Proyecto " + (db.projects.length + 1), proj());
-  n.lat = proj().lat; n.lon = proj().lon;
+  var cur = proj(); n.lat = cur.lat; n.lon = cur.lon; n.locSource = cur.locSource; n.acc = cur.acc;
+  if (cur.hz) n.hz = JSON.parse(JSON.stringify(cur.hz));
   db.projects.push(n); db.currentId = n.id; save();
   closeSheet(); renderPoints(); renderCounts();
   $("inRename").value = n.name; $("renameBox").hidden = false; $("inRename").select();
@@ -1154,7 +1155,7 @@ async function runPvgis() {
     var r1 = await pvgisGet("performance/broadband", withObs);
     if (!r0.power || !r1.power) throw new Error("PVGIS no ha devuelto la serie de producción.");
     p.pvgis = { t: Date.now(), kwp: kwp, loss: loss, angle: p.beta, aspect: p.alphaMod, db: "PVGIS 6, SARAH-3, " + PV_Y0 + "–" + PV_Y1,
-      base: energyFromHourly(r0.power), shaded: energyFromHourly(r1.power), horizon: withObs.horizon_profile, basis: basisText(p) };
+      base: energyFromHourly(r0.power), shaded: energyFromHourly(r1.power), horizon: withObs.horizon_profile, basis: basisText(p), lat: p.lat, lon: p.lon };
     touch(); renderPvgis();
   } catch (e) {
     toast("No se ha podido consultar PVGIS: " + (e && e.message || e), 5000);
@@ -1200,7 +1201,12 @@ function drawPvChartOn(c, w, h, dpr, onScreen) {
 /* Indica si el cálculo de PVGIS guardado ya no corresponde al proyecto */
 function pvStale(p) {
   var r = p.pvgis; if (!r) return false;
-  return r.angle !== p.beta || r.aspect !== p.alphaMod || r.kwp !== (p.kwp || 1) || p.updated > r.t + 2000 || !!(r.basis && r.basis !== basisText(p));
+  /* solo cuenta lo que cambia el resultado: ubicación, inclinación, orientación, potencia, pérdidas y horizonte */
+  var lossNow = p.sysLoss == null ? 14 : p.sysLoss;
+  if (r.angle !== p.beta || r.aspect !== p.alphaMod || r.kwp !== (p.kwp || 1) || r.loss !== lossNow) return true;
+  if (r.lat != null && (Math.abs(r.lat - p.lat) > 1e-4 || Math.abs(r.lon - p.lon) > 1e-4)) return true;
+  if (r.horizon) return r.horizon !== horizonFor(p).join(",");
+  return p.updated > r.t + 2000;
 }
 /* ---------------- Ajustes: punto de estudio ---------------- */
 function renderCorr() {
